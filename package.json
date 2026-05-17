@@ -5,7 +5,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "bun run --watch src/index.ts",
     "fmt": "oxfmt",
-    "fmt:check": "oxfmt --check"
+    "fmt:check": "oxfmt --check",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix"
   },
   "dependencies": {
     "@elysia/openapi": "^1.4.15",
@@ -18,7 +20,8 @@
   "devDependencies": {
     "bun-types": "latest",
     "drizzle-kit": "^0.31.10",
-    "oxfmt": "^0.50.0"
+    "oxfmt": "^0.50.0",
+    "oxlint": "^1.65.0"
   },
   "module": "src/index.js"
 }

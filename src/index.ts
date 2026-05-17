@@ -1,5 +1,6 @@
-import { Elysia } from "elysia";
 import { openapi } from "@elysia/openapi";
+import { Elysia } from "elysia";
+
 import { auth, OpenAPI } from "./lib/auth";
 
 const app = new Elysia()
@@ -15,6 +16,4 @@ const app = new Elysia()
   .get("/", () => "Hello Elysia")
   .listen(3000);
 
-console.log(
-  `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`,
-);
+console.log(`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`);
