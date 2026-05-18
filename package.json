@@ -10,6 +10,7 @@
     "lint:fix": "oxlint --fix"
   },
   "dependencies": {
+    "@better-auth/expo": "^1.6.11",
     "@elysia/openapi": "^1.4.15",
     "better-auth": "^1.6.11",
     "dotenv": "^17.4.2",
