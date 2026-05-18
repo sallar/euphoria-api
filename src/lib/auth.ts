@@ -13,7 +13,7 @@ export const auth = betterAuth({
     enabled: true,
   },
   plugins: [openAPI(), expo()],
-  trustedOrigins: ["euphoria://"],
+  trustedOrigins: ["euphoria://", "exp://", "exp://**", "exp://192.168.*.*:*/**"],
 });
 
 let _schema: ReturnType<typeof auth.api.generateOpenAPISchema>;
