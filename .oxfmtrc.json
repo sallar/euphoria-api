@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
-  "ignorePatterns": ["drizzle/*", "tsconfig.json", "package.json", "README.md"],
+  "ignorePatterns": [".agents/*", "drizzle/*", "tsconfig.json", "package.json", "README.md"],
   "sortImports": {
     "groups": [
       "type-import",
