@@ -1,7 +1,8 @@
 import { openapi } from "@elysia/openapi";
 import { Elysia } from "elysia";
 
-import { auth, OpenAPI } from "./lib/auth";
+import { OpenAPI } from "@/lib/auth";
+import { auth } from "@/plugins/auth";
 
 const app = new Elysia()
   .use(
@@ -12,8 +13,11 @@ const app = new Elysia()
       },
     }),
   )
-  .mount(auth.handler)
-  .get("/", () => "Hello Elysia")
+  .use(auth)
+  .get("/api/me", ({ user }) => user, {
+    auth: true,
+  })
+  .get("/", () => ({ healthy: true }))
   .listen(3000);
 
 console.log(`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`);

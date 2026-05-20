@@ -1,12 +1,13 @@
 import { expo } from "@better-auth/expo";
-import { betterAuth } from "better-auth";
+import { betterAuth as betterAuthFactory } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { openAPI } from "better-auth/plugins";
 
-import * as schema from "../db/auth-schema";
+import * as schema from "@/db/auth-schema";
+
 import { db } from "./db";
 
-export const auth = betterAuth({
+export const betterAuth = betterAuthFactory({
   database: drizzleAdapter(db, {
     provider: "pg",
     schema,
@@ -18,8 +19,8 @@ export const auth = betterAuth({
   trustedOrigins: ["euphoria://", "exp://", "exp://**", "exp://192.168.*.*:*/**"],
 });
 
-let _schema: ReturnType<typeof auth.api.generateOpenAPISchema>;
-const getSchema = async () => (_schema ??= auth.api.generateOpenAPISchema());
+let _schema: ReturnType<typeof betterAuth.api.generateOpenAPISchema>;
+const getSchema = async () => (_schema ??= betterAuth.api.generateOpenAPISchema());
 export const OpenAPI = {
   getPaths: (prefix = "/api/auth") =>
     getSchema().then(({ paths }) => {
