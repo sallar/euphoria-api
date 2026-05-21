@@ -15,19 +15,18 @@
     "@elysia/openapi": "^1.4.15",
     "better-auth": "^1.6.11",
     "dotenv": "^17.4.2",
-    "drizzle-orm": "^0.45.2",
-    "drizzle-typebox": "^0.3.3",
+    "drizzle-orm": "^1.0.0-beta.22",
     "elysia": "latest",
     "pg": "^8.20.0"
   },
   "devDependencies": {
     "bun-types": "latest",
-    "drizzle-kit": "^0.31.10",
+    "drizzle-kit": "^1.0.0-beta.22",
     "oxfmt": "^0.50.0",
     "oxlint": "^1.65.0"
   },
   "overrides": {
-   	"@sinclair/typebox": "0.34.0"
+    "@sinclair/typebox": "0.34.0"
   },
   "module": "src/index.js"
 }

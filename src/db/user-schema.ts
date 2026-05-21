@@ -1,4 +1,4 @@
-import { relations, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
@@ -178,9 +178,8 @@ export const profile = pgTable(
       .array()
       .default(sql`'{}'::profile_relationship_type[]`)
       .notNull(),
-    // location: geographyPoint("location").notNull(),
     location: geometry("location", {
-      type: "Geography",
+      type: "point",
       mode: "xy",
       srid: 4326,
     }).notNull(),
@@ -230,18 +229,3 @@ export const profileUser = pgTable(
     index("profile_user_user_id_idx").on(table.userId),
   ],
 );
-
-export const profileRelations = relations(profile, ({ many }) => ({
-  users: many(profileUser),
-}));
-
-export const profileUserRelations = relations(profileUser, ({ one }) => ({
-  profile: one(profile, {
-    fields: [profileUser.profileId],
-    references: [profile.id],
-  }),
-  user: one(user, {
-    fields: [profileUser.userId],
-    references: [user.id],
-  }),
-}));

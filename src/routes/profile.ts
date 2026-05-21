@@ -16,11 +16,13 @@ export const profileRoutes = new Elysia()
   .get(
     "/api/profile",
     async ({ status, user }) => {
-      const profiles = await db
-        .select(getTableColumns(profile))
-        .from(profileUser)
-        .innerJoin(profile, eq(profileUser.profileId, profile.id))
-        .where(and(eq(profileUser.userId, user.id), isNull(profile.deletedAt)));
+      const profiles = await db.query.profile.findMany({
+        where: {
+          users: {
+            id: user.id,
+          },
+        },
+      });
 
       if (!profiles.length) return status(404, { message: "Profile not found" });
 
@@ -42,11 +44,13 @@ export const profileRoutes = new Elysia()
         const createdProfile = await db.transaction(async (tx) => {
           await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${user.id}))`);
 
-          const [existingProfile] = await tx
-            .select({ profileId: profileUser.profileId })
-            .from(profileUser)
-            .where(eq(profileUser.userId, user.id))
-            .limit(1);
+          const existingProfile = await tx.query.profile.findFirst({
+            where: {
+              users: {
+                id: user.id,
+              },
+            },
+          });
 
           if (existingProfile) return undefined;
 
