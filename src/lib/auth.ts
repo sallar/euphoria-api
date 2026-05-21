@@ -16,7 +16,13 @@ export const betterAuth = betterAuthFactory({
     enabled: true,
   },
   plugins: [openAPI(), expo()],
-  trustedOrigins: ["euphoria://", "exp://", "exp://**", "exp://192.168.*.*:*/**"],
+  trustedOrigins: [
+    "euphoria://",
+    "exp://",
+    "exp://**",
+    "exp://192.168.*.*:*/**",
+    "http://localhost:8081",
+  ],
 });
 
 let _schema: ReturnType<typeof betterAuth.api.generateOpenAPISchema>;

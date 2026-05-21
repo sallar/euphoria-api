@@ -1,10 +1,12 @@
+import cors from "@elysia/cors";
 import { openapi } from "@elysia/openapi";
 import { Elysia } from "elysia";
 
 import { OpenAPI } from "@/lib/auth";
-import { auth } from "@/plugins/auth";
+import { profileRoutes } from "@/routes/profile";
 
 const app = new Elysia()
+  .use(cors())
   .use(
     openapi({
       documentation: {
@@ -13,10 +15,7 @@ const app = new Elysia()
       },
     }),
   )
-  .use(auth)
-  .get("/api/me", ({ user }) => user, {
-    auth: true,
-  })
+  .use(profileRoutes)
   .get("/", () => ({ healthy: true }))
   .listen(3000);
 
