@@ -6,6 +6,7 @@ import { profile, profileReaction, profileUser } from "@/db/profile-schema";
 import { db } from "@/lib/db";
 import { findOwnedProfile } from "@/lib/profile-queries";
 import { commonModel } from "@/models/common";
+import { profileTypeSchema } from "@/models/enums";
 import { type ProfileFeedItem, profileModel } from "@/models/profile";
 import { ref } from "@/models/utils";
 import { auth } from "@/plugins/auth";
@@ -56,6 +57,7 @@ export const feedRoutes = new Elysia({ prefix: "/api/profile", tags: ["Feed"] })
       const cursorMeters = query.cursor === undefined ? null : query.cursor * 1000;
       const pageSize = Math.trunc(query.pageSize ?? defaultPageSize);
       const queryLimit = pageSize + 1;
+      const profileType = query.profileType ?? null;
       const radiusMeters = query.radius * 1000;
 
       const feed = (await db.execute(sql`
@@ -99,6 +101,7 @@ export const feedRoutes = new Elysia({ prefix: "/api/profile", tags: ["Feed"] })
             and candidate.orientation_interests @> array[actor.orientation]::profile_orientation[]
             and candidate.date_of_birth <= (current_date - make_interval(years => ${minAge}::int))::date
             and candidate.date_of_birth > (current_date - make_interval(years => ${maxAge + 1}::int))::date
+            and (${profileType}::profile_type is null or candidate.profile_type = ${profileType}::profile_type)
             and st_dwithin(candidate.location, actor.location, ${radiusMeters})
             and not exists (
               select 1
@@ -154,6 +157,7 @@ export const feedRoutes = new Elysia({ prefix: "/api/profile", tags: ["Feed"] })
         maxAge: t.Numeric({ minimum: 18, maximum: 120, multipleOf: 1 }),
         cursor: t.Optional(t.Numeric({ minimum: 0 })),
         pageSize: t.Optional(t.Numeric({ minimum: 1, maximum: maxPageSize, multipleOf: 1 })),
+        profileType: t.Optional(profileTypeSchema),
       }),
       response: {
         200: ref("ProfileFeedResponse"),

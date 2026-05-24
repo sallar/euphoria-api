@@ -6,6 +6,8 @@ import { OpenAPI } from "@/lib/auth";
 import { feedRoutes } from "@/routes/feed";
 import { profileRoutes } from "@/routes/profile";
 
+import { auth } from "./plugins/auth";
+
 export const app = new Elysia()
   .use(cors())
   .use(
@@ -16,6 +18,7 @@ export const app = new Elysia()
       },
     }),
   )
+  .use(auth)
   .use(feedRoutes)
   .use(profileRoutes)
   .get("/", () => ({ healthy: true }), {

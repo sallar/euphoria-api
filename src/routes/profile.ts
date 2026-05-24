@@ -25,7 +25,7 @@ export const profileRoutes = new Elysia({ prefix: "/api/profile", tags: ["Profil
         },
       });
 
-      if (!profiles.length) return status(404, { message: "Profile not found" });
+      if (!profiles.length) return [];
 
       return status(200, profiles);
     },
@@ -33,7 +33,6 @@ export const profileRoutes = new Elysia({ prefix: "/api/profile", tags: ["Profil
       auth: true,
       response: {
         200: t.Array(ref("Profile")),
-        404: "MessageResponse",
       },
     },
   )
