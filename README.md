@@ -14,6 +14,12 @@ To generate a Better Auth bearer token for API testing:
 bun run auth:token <user-id>
 ```
 
+To seed 100 standalone Helsinki dating profiles for feed testing:
+
+```bash
+bun run db:seed:profiles
+```
+
 ## Docker
 A `docker-compose.yml` is provided that sets up the API and a PostgreSQL 17 database.
 

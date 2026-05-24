@@ -1,0 +1,420 @@
+import { sql } from "drizzle-orm";
+
+import type {
+  profileGenderValues,
+  profileOrientationValues,
+  profileRelationshipTypeValues,
+  profileTypeValues,
+} from "@/db/profile-schema";
+
+import { profile } from "@/db/profile-schema";
+import { db } from "@/lib/db";
+
+type ProfileSeed = typeof profile.$inferInsert;
+type ProfileType = (typeof profileTypeValues)[number];
+type ProfileGender = (typeof profileGenderValues)[number];
+type ProfileOrientation = (typeof profileOrientationValues)[number];
+type ProfileRelationshipType = (typeof profileRelationshipTypeValues)[number];
+type PrimaryGender = Extract<ProfileGender, "man" | "woman" | "non_binary" | "intersex" | "custom">;
+
+type ProfileConfig = {
+  profileType: ProfileType;
+  gender: PrimaryGender;
+  genderTags: ProfileGender[];
+  genderInterests: ProfileGender[];
+  orientation: ProfileOrientation;
+  orientationInterests: ProfileOrientation[];
+  relationshipTypes: ProfileRelationshipType[];
+};
+
+type Neighborhood = {
+  name: string;
+  x: number;
+  y: number;
+};
+
+const seedProfileCount = 100;
+const dayMs = 24 * 60 * 60 * 1000;
+
+const neighborhoods: Neighborhood[] = [
+  { name: "Kallio", x: 24.949, y: 60.184 },
+  { name: "Punavuori", x: 24.936, y: 60.161 },
+  { name: "Kamppi", x: 24.933, y: 60.169 },
+  { name: "Toolo", x: 24.925, y: 60.177 },
+  { name: "Hakaniemi", x: 24.952, y: 60.179 },
+  { name: "Kruununhaka", x: 24.956, y: 60.172 },
+  { name: "Katajanokka", x: 24.969, y: 60.167 },
+  { name: "Vallila", x: 24.956, y: 60.194 },
+  { name: "Pasila", x: 24.934, y: 60.199 },
+  { name: "Lauttasaari", x: 24.877, y: 60.158 },
+  { name: "Ruoholahti", x: 24.915, y: 60.163 },
+  { name: "Jatkasaari", x: 24.915, y: 60.156 },
+  { name: "Herttoniemi", x: 25.033, y: 60.195 },
+  { name: "Kulosaari", x: 25.006, y: 60.184 },
+  { name: "Munkkiniemi", x: 24.879, y: 60.198 },
+  { name: "Kalasatama", x: 24.98, y: 60.188 },
+  { name: "Sornainen", x: 24.96, y: 60.187 },
+  { name: "Arabia", x: 24.976, y: 60.209 },
+  { name: "Oulunkyla", x: 24.968, y: 60.229 },
+  { name: "Viikki", x: 25.02, y: 60.225 },
+];
+
+const soloNames = [
+  "Aino",
+  "Elias",
+  "Mira",
+  "Onni",
+  "Sofia",
+  "Noel",
+  "Emilia",
+  "Leo",
+  "Veera",
+  "Mikael",
+  "Sara",
+  "Eero",
+  "Iiris",
+  "Oliver",
+  "Lumi",
+  "Niko",
+  "Ada",
+  "Rasmus",
+  "Helmi",
+  "Joel",
+  "Ella",
+  "Anton",
+  "Venla",
+  "Minea",
+  "Linnea",
+  "Aada",
+  "Samu",
+  "Kira",
+  "Matias",
+  "Nora",
+  "Vilma",
+  "Topias",
+  "Alina",
+  "Oskari",
+  "Maija",
+  "Joonas",
+  "Silja",
+  "Tuomas",
+  "Reetta",
+  "Kasper",
+  "Inka",
+  "Aleksi",
+  "Roni",
+  "Tiia",
+  "Jasmin",
+  "Petra",
+  "Milo",
+  "Sanni",
+  "Kalle",
+  "Anni",
+];
+
+const coupleNames = [
+  "Aino & Leo",
+  "Mira & Sofia",
+  "Elias & Noel",
+  "Veera & Sara",
+  "Niko & Oliver",
+  "Lumi & Helmi",
+  "Ada & Linnea",
+  "Joel & Anton",
+  "Nora & Vilma",
+  "Iiris & Ella",
+];
+
+const groupNames = [
+  "Kallio Date Club",
+  "Kamppi Dinner Circle",
+  "Helsinki Board Game Crew",
+  "Sunday Sauna Friends",
+  "Afterwork Vinyl Night",
+  "Kalasatama Supper Group",
+  "Punavuori Poly Pod",
+  "Hakaniemi Brunch Table",
+];
+
+const openingLines = [
+  "Coffee, gallery walks, and slow Sunday mornings.",
+  "Happiest near the sea, a good playlist, and a tiny dance floor.",
+  "Looking for clear communication, warmth, and a little mischief.",
+  "Into cooking, long walks, and people who ask good questions.",
+  "Low-pressure dates, excellent snacks, and honest intentions.",
+  "Usually planning the next museum visit or sauna evening.",
+  "Here for chemistry, curiosity, and kind people.",
+  "Likes urban exploring, dinner parties, and late summer light.",
+  "Enjoys climbing, natural wine, and direct communication.",
+  "Can be won over with ramen, records, or a thoughtful plan.",
+];
+
+const dateIdeas = [
+  "a walk around Tokoinranta",
+  "coffee near the market hall",
+  "a ferry ride and picnic",
+  "dumplings after work",
+  "a tiny gig in Kallio",
+  "a bookstore browse",
+  "ice cream by the harbor",
+  "a museum and a glass of wine",
+  "a board game cafe night",
+  "a sauna and swim",
+];
+
+const profileConfigs: ProfileConfig[] = [
+  {
+    profileType: "solo",
+    gender: "woman",
+    genderTags: ["cis_woman"],
+    genderInterests: ["man", "woman", "non_binary"],
+    orientation: "bisexual",
+    orientationInterests: ["bisexual", "pansexual", "queer"],
+    relationshipTypes: ["dating", "long_term", "monogamish"],
+  },
+  {
+    profileType: "solo",
+    gender: "man",
+    genderTags: ["cis_man"],
+    genderInterests: ["woman", "non_binary"],
+    orientation: "heteroflexible",
+    orientationInterests: ["heterosexual", "bisexual", "queer"],
+    relationshipTypes: ["dating", "serious", "long_term"],
+  },
+  {
+    profileType: "solo",
+    gender: "non_binary",
+    genderTags: ["enby", "genderqueer"],
+    genderInterests: ["woman", "man", "non_binary", "trans_woman", "trans_man"],
+    orientation: "queer",
+    orientationInterests: ["queer", "pansexual", "bisexual"],
+    relationshipTypes: ["ethical_non_monogamy", "relationship_anarchy", "friendship"],
+  },
+  {
+    profileType: "solo",
+    gender: "woman",
+    genderTags: ["trans_woman"],
+    genderInterests: ["woman", "non_binary", "trans_woman"],
+    orientation: "lesbian",
+    orientationInterests: ["lesbian", "queer", "homoflexible"],
+    relationshipTypes: ["dating", "long_term", "monogamous"],
+  },
+  {
+    profileType: "solo",
+    gender: "man",
+    genderTags: ["trans_man", "transmasculine"],
+    genderInterests: ["man", "non_binary", "trans_man"],
+    orientation: "gay",
+    orientationInterests: ["gay", "homoflexible", "queer"],
+    relationshipTypes: ["casual", "dating", "friends_with_benefits"],
+  },
+  {
+    profileType: "solo",
+    gender: "woman",
+    genderTags: ["cis_woman"],
+    genderInterests: ["man"],
+    orientation: "heterosexual",
+    orientationInterests: ["heterosexual", "heteroflexible"],
+    relationshipTypes: ["monogamous", "serious", "long_term"],
+  },
+  {
+    profileType: "solo",
+    gender: "man",
+    genderTags: ["cis_man"],
+    genderInterests: ["man"],
+    orientation: "homosexual",
+    orientationInterests: ["gay", "homosexual", "queer"],
+    relationshipTypes: ["dating", "long_term", "one_on_one_only"],
+  },
+  {
+    profileType: "solo",
+    gender: "non_binary",
+    genderTags: ["agender"],
+    genderInterests: ["non_binary", "woman"],
+    orientation: "asexual",
+    orientationInterests: ["asexual", "demisexual", "graysexual"],
+    relationshipTypes: ["platonic", "queerplatonic", "friendship"],
+  },
+  {
+    profileType: "solo",
+    gender: "woman",
+    genderTags: ["genderfluid"],
+    genderInterests: ["man", "woman", "non_binary"],
+    orientation: "pansexual",
+    orientationInterests: ["pansexual", "omnisexual", "queer"],
+    relationshipTypes: ["polyamorous", "kitchen_table_poly", "non_hierarchical"],
+  },
+  {
+    profileType: "solo",
+    gender: "man",
+    genderTags: ["androgynous"],
+    genderInterests: ["woman", "non_binary"],
+    orientation: "demisexual",
+    orientationInterests: ["demisexual", "graysexual", "bisexual"],
+    relationshipTypes: ["dating", "friendship", "long_term"],
+  },
+  {
+    profileType: "couple",
+    gender: "custom",
+    genderTags: ["woman", "man"],
+    genderInterests: ["woman", "non_binary"],
+    orientation: "bisexual",
+    orientationInterests: ["bisexual", "pansexual", "queer"],
+    relationshipTypes: ["couple", "open_relationship", "casual"],
+  },
+  {
+    profileType: "couple",
+    gender: "custom",
+    genderTags: ["woman", "non_binary"],
+    genderInterests: ["man", "woman", "non_binary"],
+    orientation: "queer",
+    orientationInterests: ["queer", "pansexual", "bisexual"],
+    relationshipTypes: ["ethical_non_monogamy", "play_partner", "friends_with_benefits"],
+  },
+  {
+    profileType: "group",
+    gender: "custom",
+    genderTags: ["woman", "man", "non_binary"],
+    genderInterests: ["woman", "man", "non_binary"],
+    orientation: "queer",
+    orientationInterests: ["queer", "pansexual", "bisexual", "omnisexual"],
+    relationshipTypes: ["group", "friendship", "casual_play"],
+  },
+  {
+    profileType: "solo",
+    gender: "intersex",
+    genderTags: ["intersex", "gender_nonconforming"],
+    genderInterests: ["woman", "man", "non_binary", "intersex"],
+    orientation: "omnisexual",
+    orientationInterests: ["omnisexual", "pansexual", "queer"],
+    relationshipTypes: ["dating", "ethical_non_monogamy", "long_term"],
+  },
+  {
+    profileType: "solo",
+    gender: "custom",
+    genderTags: ["maverique", "gender_variant"],
+    genderInterests: ["non_binary", "custom", "woman"],
+    orientation: "grayromantic",
+    orientationInterests: ["grayromantic", "demiromantic", "aromantic"],
+    relationshipTypes: ["queerplatonic", "platonic", "friendship"],
+  },
+];
+
+const pick = <T>(values: T[], index: number): T => values[index % values.length];
+
+const pad = (value: number) => value.toString().padStart(2, "0");
+
+const seedProfileId = (index: number) =>
+  `00000000-0000-4000-8000-${(index + 1).toString(16).padStart(12, "0")}`;
+
+const locationNear = (neighborhood: Neighborhood, index: number) => ({
+  x: Number((neighborhood.x + Math.cos(index * 1.7) * 0.006).toFixed(6)),
+  y: Number((neighborhood.y + Math.sin(index * 1.3) * 0.0035).toFixed(6)),
+});
+
+const dateOfBirthFor = (index: number) => {
+  const age = 20 + ((index * 7) % 38);
+  const year = 2026 - age;
+  const month = (index % 12) + 1;
+  const day = ((index * 3) % 28) + 1;
+
+  return `${year}-${pad(month)}-${pad(day)}`;
+};
+
+const profileNameFor = (config: ProfileConfig, index: number) => {
+  const suffix = pad(index + 1);
+
+  if (config.profileType === "couple") return `${pick(coupleNames, index)} ${suffix}`;
+  if (config.profileType === "group") return `${pick(groupNames, index)} ${suffix}`;
+
+  return `${pick(soloNames, index)} ${suffix}`;
+};
+
+const relationshipSummary = (relationshipTypes: ProfileRelationshipType[]) =>
+  relationshipTypes.map((type) => type.replaceAll("_", " ")).join(", ");
+
+const profileBioFor = (config: ProfileConfig, neighborhood: Neighborhood, index: number) =>
+  [
+    `Seed profile in ${neighborhood.name}.`,
+    pick(openingLines, index),
+    `Ideal first date: ${pick(dateIdeas, index)}.`,
+    `Open to ${relationshipSummary(config.relationshipTypes)}.`,
+  ].join(" ");
+
+const createHelsinkiProfiles = () => {
+  const now = new Date();
+
+  return Array.from({ length: seedProfileCount }, (_, index): ProfileSeed => {
+    const config = pick(profileConfigs, index);
+    const neighborhood = pick(neighborhoods, index);
+    const lastSeenAt = new Date(now.getTime() - ((index * 7) % 240) * 60 * 60 * 1000);
+    const createdAt = new Date(now.getTime() - (30 + index) * dayMs);
+
+    return {
+      id: seedProfileId(index),
+      createdAt,
+      updatedAt: now,
+      deletedAt: null,
+      lastSeenAt,
+      profileType: config.profileType,
+      name: profileNameFor(config, index),
+      bio: profileBioFor(config, neighborhood, index),
+      gender: config.gender,
+      genderTags: config.genderTags,
+      genderInterests: config.genderInterests,
+      orientation: config.orientation,
+      orientationInterests: config.orientationInterests,
+      relationshipTypes: config.relationshipTypes,
+      location: locationNear(neighborhood, index),
+      country: "FI",
+      dateOfBirth: dateOfBirthFor(index),
+      hidden: index % 13 === 0,
+    };
+  });
+};
+
+const main = async () => {
+  const profiles = createHelsinkiProfiles();
+
+  const seeded = await db
+    .insert(profile)
+    .values(profiles)
+    .onConflictDoUpdate({
+      target: profile.id,
+      set: {
+        createdAt: sql`excluded.created_at`,
+        updatedAt: sql`excluded.updated_at`,
+        deletedAt: sql`excluded.deleted_at`,
+        lastSeenAt: sql`excluded.last_seen_at`,
+        profileType: sql`excluded.profile_type`,
+        name: sql`excluded.name`,
+        bio: sql`excluded.bio`,
+        gender: sql`excluded.gender`,
+        genderTags: sql`excluded.gender_tags`,
+        genderInterests: sql`excluded.gender_interests`,
+        orientation: sql`excluded.orientation`,
+        orientationInterests: sql`excluded.orientation_interests`,
+        relationshipTypes: sql`excluded.relationship_types`,
+        location: sql`excluded.location`,
+        country: sql`excluded.country`,
+        dateOfBirth: sql`excluded.date_of_birth`,
+        hidden: sql`excluded.hidden`,
+      },
+    })
+    .returning({ id: profile.id });
+
+  const hiddenCount = profiles.filter((seed) => seed.hidden).length;
+
+  console.log(`Seeded ${seeded.length} Helsinki profiles.`);
+  console.log(`Visible profiles: ${profiles.length - hiddenCount}`);
+  console.log(`Hidden profiles: ${hiddenCount}`);
+};
+
+try {
+  await main();
+  process.exit(0);
+} catch (error) {
+  console.error("Failed to seed Helsinki profiles");
+  console.error(error instanceof Error ? error.message : error);
+  process.exit(1);
+}
