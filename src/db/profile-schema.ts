@@ -181,6 +181,7 @@ export const profile = pgTable(
       .array()
       .default(sql`'{}'::profile_relationship_type[]`)
       .notNull(),
+    // Even though this says geometry point, but the actual db type is Geography(point, 4326), because drizzle had an issue with the geography point type.
     location: geometry("location", {
       type: "point",
       mode: "xy",
