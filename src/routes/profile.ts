@@ -4,7 +4,7 @@ import Elysia, { t } from "elysia";
 import { profile, profileUser } from "@/db/user-schema";
 import { db } from "@/lib/db";
 import { commonModel } from "@/models/common";
-import { profileModel, profileSelectColumns } from "@/models/profile";
+import { Profile, profileModel, profileSelectColumns } from "@/models/profile";
 import { ref } from "@/models/utils";
 import { auth } from "@/plugins/auth";
 
@@ -63,14 +63,7 @@ export const profileRoutes = new Elysia()
               ...body,
               profileType: "solo",
             })
-            .returning({ id: profile.id });
-
-          const newProfile = await tx.query.profile.findFirst({
-            columns: profileSelectColumns,
-            where: {
-              id: created.id,
-            },
-          });
+            .returning();
 
           await tx.insert(profileUser).values({
             profileId: created.id,
@@ -78,12 +71,12 @@ export const profileRoutes = new Elysia()
             role: "owner",
           });
 
-          return newProfile;
+          return created;
         });
 
         if (!createdProfile) return status(409, { message: "User already has a profile" });
 
-        return status(201, createdProfile);
+        return status(201, createdProfile as Profile);
       } catch (error) {
         console.error("Failed to create profile:", error);
         return status(500, { message: "Failed to create profile" });

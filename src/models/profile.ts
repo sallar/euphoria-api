@@ -9,7 +9,7 @@ import {
 
 const writableProfileFields = {
   name: t.String({ minLength: 1, maxLength: 120 }),
-  bio: t.Nullable(t.String({ maxLength: 1000 })),
+  bio: t.Nullable(t.String()),
   profileType: profileTypeSchema,
   gender: profileGenderSchema,
   genderInterests: t.Array(profileGenderSchema),
@@ -17,12 +17,17 @@ const writableProfileFields = {
   orientation: profileOrientationSchema,
   orientationInterests: t.Array(profileOrientationSchema),
   relationshipTypes: t.Array(profileRelationshipTypeSchema),
-  location: t.Object({
-    x: t.Number({ minimum: -90, maximum: 90 }),
-    y: t.Number({ minimum: -180, maximum: 180 }),
-  }),
-  country: t.String({ minLength: 2, maxLength: 2 }),
+  hidden: t.Optional(t.Boolean()),
+};
+
+const wirteOnlyFields = {
+  lastSeenAt: t.Optional(t.Date()),
   dateOfBirth: t.String({ format: "date" }),
+  country: t.String({ minLength: 2, maxLength: 2 }),
+  location: t.Object({
+    x: t.Number({ minimum: -180, maximum: 180 }), // longitude
+    y: t.Number({ minimum: -90, maximum: 90 }), // latitude
+  }),
 };
 
 const Profile = t.Object({
@@ -32,7 +37,10 @@ const Profile = t.Object({
   ...writableProfileFields,
 });
 
-const ProfileInsert = t.Object(writableProfileFields);
+const ProfileInsert = t.Object({
+  ...writableProfileFields,
+  ...wirteOnlyFields,
+});
 
 const ProfileUpdate = t.Partial(ProfileInsert);
 
