@@ -1,22 +1,22 @@
-import { and, eq, getTableColumns, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import Elysia, { t } from "elysia";
 
 import { profile, profileUser } from "@/db/user-schema";
-import {
-  profileInsertSchema,
-  profileSelectSchema,
-  profilesSelectSchema,
-  profileUpdateSchema,
-} from "@/entities/profile";
 import { db } from "@/lib/db";
+import { commonModel } from "@/models/common";
+import { profileModel, profileSelectColumns } from "@/models/profile";
+import { ref } from "@/models/utils";
 import { auth } from "@/plugins/auth";
 
 export const profileRoutes = new Elysia()
   .use(auth)
+  .use(profileModel)
+  .use(commonModel)
   .get(
     "/api/profile",
     async ({ status, user }) => {
       const profiles = await db.query.profile.findMany({
+        columns: profileSelectColumns,
         where: {
           users: {
             id: user.id,
@@ -31,8 +31,8 @@ export const profileRoutes = new Elysia()
     {
       auth: true,
       response: {
-        200: profilesSelectSchema,
-        404: t.Object({ message: t.String() }),
+        200: t.Array(ref("Profile")),
+        404: "MessageResponse",
       },
       tags: ["Profile"],
     },
@@ -45,6 +45,9 @@ export const profileRoutes = new Elysia()
           await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${user.id}))`);
 
           const existingProfile = await tx.query.profile.findFirst({
+            columns: {
+              id: true,
+            },
             where: {
               users: {
                 id: user.id,
@@ -60,7 +63,14 @@ export const profileRoutes = new Elysia()
               ...body,
               profileType: "solo",
             })
-            .returning();
+            .returning({ id: profile.id });
+
+          const newProfile = await tx.query.profile.findFirst({
+            columns: profileSelectColumns,
+            where: {
+              id: created.id,
+            },
+          });
 
           await tx.insert(profileUser).values({
             profileId: created.id,
@@ -68,7 +78,7 @@ export const profileRoutes = new Elysia()
             role: "owner",
           });
 
-          return created;
+          return newProfile;
         });
 
         if (!createdProfile) return status(409, { message: "User already has a profile" });
@@ -81,7 +91,12 @@ export const profileRoutes = new Elysia()
     },
     {
       auth: true,
-      body: profileInsertSchema,
+      body: "ProfileInsert",
+      response: {
+        201: "Profile",
+        409: "MessageResponse",
+        500: "MessageResponse",
+      },
       tags: ["Profile"],
     },
   )
@@ -119,11 +134,11 @@ export const profileRoutes = new Elysia()
     {
       auth: true,
       params: t.Object({ id: t.String({ format: "uuid" }) }),
-      body: profileUpdateSchema,
+      body: "ProfileUpdate",
       response: {
-        200: profileSelectSchema,
-        400: t.Object({ message: t.String() }),
-        404: t.Object({ message: t.String() }),
+        200: "Profile",
+        400: "MessageResponse",
+        404: "MessageResponse",
       },
       tags: ["Profile"],
     },

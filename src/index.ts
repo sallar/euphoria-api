@@ -5,7 +5,7 @@ import { Elysia } from "elysia";
 import { OpenAPI } from "@/lib/auth";
 import { profileRoutes } from "@/routes/profile";
 
-const app = new Elysia()
+export const app = new Elysia()
   .use(cors())
   .use(
     openapi({

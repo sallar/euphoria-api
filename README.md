@@ -8,6 +8,12 @@ bun dev
 
 Open http://localhost:3000/ with your browser to see the result.
 
+To generate a Better Auth bearer token for API testing:
+
+```bash
+bun run auth:token <user-id>
+```
+
 ## Docker
 A `docker-compose.yml` is provided that sets up the API and a PostgreSQL 17 database.
 

@@ -2,6 +2,7 @@ import { expo } from "@better-auth/expo";
 import { betterAuth as betterAuthFactory } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { openAPI } from "better-auth/plugins";
+import { bearer } from "better-auth/plugins/bearer";
 
 import * as schema from "@/db/auth-schema";
 
@@ -15,7 +16,7 @@ export const betterAuth = betterAuthFactory({
   emailAndPassword: {
     enabled: true,
   },
-  plugins: [openAPI(), expo()],
+  plugins: [openAPI(), expo(), bearer()],
   trustedOrigins: [
     "euphoria://",
     "exp://",
