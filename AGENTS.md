@@ -5,7 +5,7 @@
 - Runtime/package manager: Bun.
 - Main schema barrel: `src/db/schema.ts`.
 - Drizzle config currently reads explicit schema files from `drizzle.config.ts`.
-- Auth tables live in `src/db/auth-schema.ts`; app/domain tables can live in `src/db/user-schema.ts`.
+- Auth tables live in `src/db/auth-schema.ts`; app/domain tables can live in `src/db/profile-schema.ts`.
 
 ## Verification Commands
 

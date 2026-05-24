@@ -1,12 +1,53 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import Elysia, { t } from "elysia";
 
-import { profile, profileUser } from "@/db/user-schema";
+import { profile, profileReaction, profileUser } from "@/db/profile-schema";
 import { db } from "@/lib/db";
 import { commonModel } from "@/models/common";
 import { Profile, profileModel, profileSelectColumns } from "@/models/profile";
 import { ref } from "@/models/utils";
 import { auth } from "@/plugins/auth";
+
+const findOwnedProfile = (profileId: string, userId: string) =>
+  db
+    .select({ profileId: profileUser.profileId })
+    .from(profileUser)
+    .innerJoin(profile, eq(profileUser.profileId, profile.id))
+    .where(
+      and(
+        eq(profileUser.profileId, profileId),
+        eq(profileUser.userId, userId),
+        isNull(profile.deletedAt),
+      ),
+    )
+    .limit(1);
+
+const findActiveProfile = (profileId: string) =>
+  db
+    .select({ id: profile.id })
+    .from(profile)
+    .where(and(eq(profile.id, profileId), isNull(profile.deletedAt)))
+    .limit(1);
+
+const setProfileReaction = (
+  profileId: string,
+  targetProfileId: string,
+  reaction: "like" | "unlike",
+) =>
+  db
+    .insert(profileReaction)
+    .values({
+      profileId,
+      targetProfileId,
+      reaction,
+    })
+    .onConflictDoUpdate({
+      target: [profileReaction.profileId, profileReaction.targetProfileId],
+      set: {
+        reaction,
+        updatedAt: new Date(),
+      },
+    });
 
 export const profileRoutes = new Elysia()
   .use(auth)
@@ -130,6 +171,64 @@ export const profileRoutes = new Elysia()
       body: "ProfileUpdate",
       response: {
         200: "Profile",
+        400: "MessageResponse",
+        404: "MessageResponse",
+      },
+      tags: ["Profile"],
+    },
+  )
+  .post(
+    "/api/profile/:id/likes/:targetProfileId",
+    async ({ params, status, user }) => {
+      if (params.id === params.targetProfileId)
+        return status(400, { message: "Profiles cannot like themselves" });
+
+      const [profileAccess] = await findOwnedProfile(params.id, user.id);
+      if (!profileAccess) return status(404, { message: "Profile not found" });
+
+      const [targetProfile] = await findActiveProfile(params.targetProfileId);
+      if (!targetProfile) return status(404, { message: "Target profile not found" });
+
+      await setProfileReaction(params.id, params.targetProfileId, "like");
+      return status(200, { reaction: "like" });
+    },
+    {
+      auth: true,
+      params: t.Object({
+        id: t.String({ format: "uuid" }),
+        targetProfileId: t.String({ format: "uuid" }),
+      }),
+      response: {
+        200: "ProfileReactionStatus",
+        400: "MessageResponse",
+        404: "MessageResponse",
+      },
+      tags: ["Profile"],
+    },
+  )
+  .post(
+    "/api/profile/:id/unlikes/:targetProfileId",
+    async ({ params, status, user }) => {
+      if (params.id === params.targetProfileId)
+        return status(400, { message: "Profiles cannot unlike themselves" });
+
+      const [profileAccess] = await findOwnedProfile(params.id, user.id);
+      if (!profileAccess) return status(404, { message: "Profile not found" });
+
+      const [targetProfile] = await findActiveProfile(params.targetProfileId);
+      if (!targetProfile) return status(404, { message: "Target profile not found" });
+
+      await setProfileReaction(params.id, params.targetProfileId, "unlike");
+      return status(200, { reaction: "unlike" });
+    },
+    {
+      auth: true,
+      params: t.Object({
+        id: t.String({ format: "uuid" }),
+        targetProfileId: t.String({ format: "uuid" }),
+      }),
+      response: {
+        200: "ProfileReactionStatus",
         400: "MessageResponse",
         404: "MessageResponse",
       },

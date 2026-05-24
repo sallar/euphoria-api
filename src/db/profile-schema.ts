@@ -136,6 +136,7 @@ export const profileRelationshipTypeValues = [
 ] as const;
 
 export const profileUserRoleValues = ["owner", "member"] as const;
+export const profileReactionValues = ["like", "unlike"] as const;
 
 export const profileTypeEnum = pgEnum("profile_type", profileTypeValues);
 export const profileGenderEnum = pgEnum("profile_gender", profileGenderValues);
@@ -145,6 +146,7 @@ export const profileRelationshipTypeEnum = pgEnum(
   profileRelationshipTypeValues,
 );
 export const profileUserRoleEnum = pgEnum("profile_user_role", profileUserRoleValues);
+export const profileReactionEnum = pgEnum("profile_reaction_type", profileReactionValues);
 
 export const profile = pgTable(
   "profile",
@@ -227,5 +229,32 @@ export const profileUser = pgTable(
     primaryKey({ columns: [table.profileId, table.userId] }),
     index("profile_user_profile_id_idx").on(table.profileId),
     index("profile_user_user_id_idx").on(table.userId),
+  ],
+);
+
+export const profileReaction = pgTable(
+  "profile_reaction",
+  {
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profile.id, { onDelete: "cascade" }),
+    targetProfileId: uuid("target_profile_id")
+      .notNull()
+      .references(() => profile.id, { onDelete: "cascade" }),
+    reaction: profileReactionEnum("reaction").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.profileId, table.targetProfileId] }),
+    check(
+      "profile_reaction_no_self_reaction_check",
+      sql`${table.profileId} <> ${table.targetProfileId}`,
+    ),
+    index("profile_reaction_profile_reaction_idx").on(table.profileId, table.reaction),
+    index("profile_reaction_target_reaction_idx").on(table.targetProfileId, table.reaction),
   ],
 );

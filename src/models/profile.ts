@@ -3,6 +3,7 @@ import Elysia, { t } from "elysia";
 import {
   profileGenderSchema,
   profileOrientationSchema,
+  profileReactionSchema,
   profileRelationshipTypeSchema,
   profileTypeSchema,
 } from "./enums";
@@ -44,6 +45,10 @@ const ProfileInsert = t.Object({
 
 const ProfileUpdate = t.Partial(ProfileInsert);
 
+const ProfileReactionStatus = t.Object({
+  reaction: profileReactionSchema,
+});
+
 export type Profile = typeof Profile.static;
 export const profileSelectColumns = Object.fromEntries(
   Object.keys(Profile.properties).map((key) => [key, true]),
@@ -54,5 +59,6 @@ export const profileSelectColumns = Object.fromEntries(
 export const profileModel = new Elysia({ name: "profile-model" }).model({
   Profile,
   ProfileInsert,
+  ProfileReactionStatus,
   ProfileUpdate,
 });
