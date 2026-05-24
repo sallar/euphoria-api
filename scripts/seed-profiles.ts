@@ -28,35 +28,81 @@ type ProfileConfig = {
 };
 
 type Neighborhood = {
+  city: "Espoo" | "Helsinki";
   name: string;
   x: number;
   y: number;
 };
 
-const seedProfileCount = 100;
+const seedProfileCount = 10_000;
+const insertBatchSize = 500;
 const dayMs = 24 * 60 * 60 * 1000;
 
 const neighborhoods: Neighborhood[] = [
-  { name: "Kallio", x: 24.949, y: 60.184 },
-  { name: "Punavuori", x: 24.936, y: 60.161 },
-  { name: "Kamppi", x: 24.933, y: 60.169 },
-  { name: "Toolo", x: 24.925, y: 60.177 },
-  { name: "Hakaniemi", x: 24.952, y: 60.179 },
-  { name: "Kruununhaka", x: 24.956, y: 60.172 },
-  { name: "Katajanokka", x: 24.969, y: 60.167 },
-  { name: "Vallila", x: 24.956, y: 60.194 },
-  { name: "Pasila", x: 24.934, y: 60.199 },
-  { name: "Lauttasaari", x: 24.877, y: 60.158 },
-  { name: "Ruoholahti", x: 24.915, y: 60.163 },
-  { name: "Jatkasaari", x: 24.915, y: 60.156 },
-  { name: "Herttoniemi", x: 25.033, y: 60.195 },
-  { name: "Kulosaari", x: 25.006, y: 60.184 },
-  { name: "Munkkiniemi", x: 24.879, y: 60.198 },
-  { name: "Kalasatama", x: 24.98, y: 60.188 },
-  { name: "Sornainen", x: 24.96, y: 60.187 },
-  { name: "Arabia", x: 24.976, y: 60.209 },
-  { name: "Oulunkyla", x: 24.968, y: 60.229 },
-  { name: "Viikki", x: 25.02, y: 60.225 },
+  { city: "Helsinki", name: "Kallio", x: 24.949, y: 60.184 },
+  { city: "Helsinki", name: "Punavuori", x: 24.936, y: 60.161 },
+  { city: "Helsinki", name: "Kamppi", x: 24.933, y: 60.169 },
+  { city: "Helsinki", name: "Toolo", x: 24.925, y: 60.177 },
+  { city: "Helsinki", name: "Hakaniemi", x: 24.952, y: 60.179 },
+  { city: "Helsinki", name: "Kruununhaka", x: 24.956, y: 60.172 },
+  { city: "Helsinki", name: "Katajanokka", x: 24.969, y: 60.167 },
+  { city: "Helsinki", name: "Vallila", x: 24.956, y: 60.194 },
+  { city: "Helsinki", name: "Pasila", x: 24.934, y: 60.199 },
+  { city: "Helsinki", name: "Lauttasaari", x: 24.877, y: 60.158 },
+  { city: "Helsinki", name: "Ruoholahti", x: 24.915, y: 60.163 },
+  { city: "Helsinki", name: "Jatkasaari", x: 24.915, y: 60.156 },
+  { city: "Helsinki", name: "Herttoniemi", x: 25.033, y: 60.195 },
+  { city: "Helsinki", name: "Kulosaari", x: 25.006, y: 60.184 },
+  { city: "Helsinki", name: "Munkkiniemi", x: 24.879, y: 60.198 },
+  { city: "Helsinki", name: "Kalasatama", x: 24.98, y: 60.188 },
+  { city: "Helsinki", name: "Sornainen", x: 24.96, y: 60.187 },
+  { city: "Helsinki", name: "Arabia", x: 24.976, y: 60.209 },
+  { city: "Helsinki", name: "Oulunkyla", x: 24.968, y: 60.229 },
+  { city: "Helsinki", name: "Viikki", x: 25.02, y: 60.225 },
+  { city: "Helsinki", name: "Eira", x: 24.94, y: 60.157 },
+  { city: "Helsinki", name: "Ullanlinna", x: 24.947, y: 60.161 },
+  { city: "Helsinki", name: "Kaartinkaupunki", x: 24.948, y: 60.166 },
+  { city: "Helsinki", name: "Etu-Toolo", x: 24.928, y: 60.174 },
+  { city: "Helsinki", name: "Meilahti", x: 24.907, y: 60.19 },
+  { city: "Helsinki", name: "Haaga", x: 24.893, y: 60.218 },
+  { city: "Helsinki", name: "Pitajanmaki", x: 24.857, y: 60.223 },
+  { city: "Helsinki", name: "Maunula", x: 24.927, y: 60.229 },
+  { city: "Helsinki", name: "Pakila", x: 24.947, y: 60.248 },
+  { city: "Helsinki", name: "Malmi", x: 25.013, y: 60.251 },
+  { city: "Helsinki", name: "Tapanila", x: 25.027, y: 60.263 },
+  { city: "Helsinki", name: "Pukinmaki", x: 24.994, y: 60.243 },
+  { city: "Helsinki", name: "Kontula", x: 25.081, y: 60.238 },
+  { city: "Helsinki", name: "Myllypuro", x: 25.077, y: 60.222 },
+  { city: "Helsinki", name: "Itakeskus", x: 25.082, y: 60.212 },
+  { city: "Helsinki", name: "Vuosaari", x: 25.142, y: 60.209 },
+  { city: "Helsinki", name: "Laajasalo", x: 25.044, y: 60.17 },
+  { city: "Helsinki", name: "Roihuvuori", x: 25.058, y: 60.201 },
+  { city: "Helsinki", name: "Pihlajamaki", x: 25.009, y: 60.235 },
+  { city: "Helsinki", name: "Konala", x: 24.843, y: 60.236 },
+  { city: "Espoo", name: "Tapiola", x: 24.807, y: 60.176 },
+  { city: "Espoo", name: "Otaniemi", x: 24.827, y: 60.185 },
+  { city: "Espoo", name: "Keilaniemi", x: 24.832, y: 60.171 },
+  { city: "Espoo", name: "Leppavaara", x: 24.813, y: 60.218 },
+  { city: "Espoo", name: "Matinkyla", x: 24.738, y: 60.158 },
+  { city: "Espoo", name: "Niittykumpu", x: 24.766, y: 60.171 },
+  { city: "Espoo", name: "Olari", x: 24.744, y: 60.174 },
+  { city: "Espoo", name: "Haukilahti", x: 24.768, y: 60.151 },
+  { city: "Espoo", name: "Westend", x: 24.797, y: 60.162 },
+  { city: "Espoo", name: "Mankkaa", x: 24.77, y: 60.197 },
+  { city: "Espoo", name: "Laajalahti", x: 24.798, y: 60.196 },
+  { city: "Espoo", name: "Kilo", x: 24.78, y: 60.218 },
+  { city: "Espoo", name: "Karakallio", x: 24.752, y: 60.225 },
+  { city: "Espoo", name: "Suurpelto", x: 24.759, y: 60.187 },
+  { city: "Espoo", name: "Espoon keskus", x: 24.657, y: 60.205 },
+  { city: "Espoo", name: "Kauklahti", x: 24.603, y: 60.189 },
+  { city: "Espoo", name: "Espoonlahti", x: 24.67, y: 60.148 },
+  { city: "Espoo", name: "Kivenlahti", x: 24.64, y: 60.133 },
+  { city: "Espoo", name: "Soukka", x: 24.672, y: 60.137 },
+  { city: "Espoo", name: "Nokkala", x: 24.725, y: 60.142 },
+  { city: "Espoo", name: "Lippajarvi", x: 24.729, y: 60.236 },
+  { city: "Espoo", name: "Viherlaakso", x: 24.745, y: 60.227 },
+  { city: "Espoo", name: "Laaksolahti", x: 24.693, y: 60.252 },
+  { city: "Espoo", name: "Nuuksio", x: 24.5, y: 60.31 },
 ];
 
 const soloNames = [
@@ -335,13 +381,13 @@ const relationshipSummary = (relationshipTypes: ProfileRelationshipType[]) =>
 
 const profileBioFor = (config: ProfileConfig, neighborhood: Neighborhood, index: number) =>
   [
-    `Seed profile in ${neighborhood.name}.`,
+    `Seed profile in ${neighborhood.name}, ${neighborhood.city}.`,
     pick(openingLines, index),
     `Ideal first date: ${pick(dateIdeas, index)}.`,
     `Open to ${relationshipSummary(config.relationshipTypes)}.`,
   ].join(" ");
 
-const createHelsinkiProfiles = () => {
+const createSeedProfiles = () => {
   const now = new Date();
 
   return Array.from({ length: seedProfileCount }, (_, index): ProfileSeed => {
@@ -374,38 +420,45 @@ const createHelsinkiProfiles = () => {
 };
 
 const main = async () => {
-  const profiles = createHelsinkiProfiles();
+  const profiles = createSeedProfiles();
 
-  const seeded = await db
-    .insert(profile)
-    .values(profiles)
-    .onConflictDoUpdate({
-      target: profile.id,
-      set: {
-        createdAt: sql`excluded.created_at`,
-        updatedAt: sql`excluded.updated_at`,
-        deletedAt: sql`excluded.deleted_at`,
-        lastSeenAt: sql`excluded.last_seen_at`,
-        profileType: sql`excluded.profile_type`,
-        name: sql`excluded.name`,
-        bio: sql`excluded.bio`,
-        gender: sql`excluded.gender`,
-        genderTags: sql`excluded.gender_tags`,
-        genderInterests: sql`excluded.gender_interests`,
-        orientation: sql`excluded.orientation`,
-        orientationInterests: sql`excluded.orientation_interests`,
-        relationshipTypes: sql`excluded.relationship_types`,
-        location: sql`excluded.location`,
-        country: sql`excluded.country`,
-        dateOfBirth: sql`excluded.date_of_birth`,
-        hidden: sql`excluded.hidden`,
-      },
-    })
-    .returning({ id: profile.id });
+  let seededCount = 0;
+
+  for (let index = 0; index < profiles.length; index += insertBatchSize) {
+    const batch = profiles.slice(index, index + insertBatchSize);
+    const seeded = await db
+      .insert(profile)
+      .values(batch)
+      .onConflictDoUpdate({
+        target: profile.id,
+        set: {
+          createdAt: sql`excluded.created_at`,
+          updatedAt: sql`excluded.updated_at`,
+          deletedAt: sql`excluded.deleted_at`,
+          lastSeenAt: sql`excluded.last_seen_at`,
+          profileType: sql`excluded.profile_type`,
+          name: sql`excluded.name`,
+          bio: sql`excluded.bio`,
+          gender: sql`excluded.gender`,
+          genderTags: sql`excluded.gender_tags`,
+          genderInterests: sql`excluded.gender_interests`,
+          orientation: sql`excluded.orientation`,
+          orientationInterests: sql`excluded.orientation_interests`,
+          relationshipTypes: sql`excluded.relationship_types`,
+          location: sql`excluded.location`,
+          country: sql`excluded.country`,
+          dateOfBirth: sql`excluded.date_of_birth`,
+          hidden: sql`excluded.hidden`,
+        },
+      })
+      .returning({ id: profile.id });
+
+    seededCount += seeded.length;
+  }
 
   const hiddenCount = profiles.filter((seed) => seed.hidden).length;
 
-  console.log(`Seeded ${seeded.length} Helsinki profiles.`);
+  console.log(`Seeded ${seededCount} Helsinki and Espoo profiles.`);
   console.log(`Visible profiles: ${profiles.length - hiddenCount}`);
   console.log(`Hidden profiles: ${hiddenCount}`);
 };

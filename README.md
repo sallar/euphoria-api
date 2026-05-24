@@ -14,7 +14,7 @@ To generate a Better Auth bearer token for API testing:
 bun run auth:token <user-id>
 ```
 
-To seed 100 standalone Helsinki dating profiles for feed testing:
+To seed 10,000 standalone Helsinki and Espoo dating profiles for feed testing:
 
 ```bash
 bun run db:seed:profiles
