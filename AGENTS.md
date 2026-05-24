@@ -33,7 +33,9 @@
 
 ## Drizzle / PostGIS Notes
 
-- Drizzle ORM is `^0.45.2`; current docs support array-style table callbacks for indexes and `timestamp().defaultNow().$onUpdate(...)`.
+- Drizzle ORM is `^1.0.0-beta.22`; current docs support array-style table callbacks for indexes and `timestamp().defaultNow().$onUpdate(...)`.
+- In this dating-app domain, "unlike" means an explicit negative profile decision, not undoing a like. Store profile decisions as mutually exclusive reactions such as `like` / `unlike` rather than modeling unlike as a delete.
+- Avoid naming a PostgreSQL enum the same as a table. PostgreSQL creates a composite type for each table, so an enum named `profile_reaction` conflicts with a table named `profile_reaction`; prefer names like `profile_reaction_type`.
 - For proximity feed queries, prefer PostGIS `geography(Point,4326)` plus a GiST index over separate latitude/longitude columns.
 - Migrations that use geography require:
 

@@ -7,6 +7,7 @@ import {
   index,
   pgEnum,
   pgTable,
+  pgView,
   primaryKey,
   text,
   timestamp,
@@ -258,3 +259,20 @@ export const profileReaction = pgTable(
     index("profile_reaction_target_reaction_idx").on(table.targetProfileId, table.reaction),
   ],
 );
+
+export const profileMatch = pgView("profile_match", {
+  profileId: uuid("profile_id").notNull(),
+  matchedProfileId: uuid("matched_profile_id").notNull(),
+  matchedAt: timestamp("matched_at", { withTimezone: true }).notNull(),
+}).as(sql`
+  select
+    liked.profile_id,
+    liked.target_profile_id as matched_profile_id,
+    greatest(liked.updated_at, liked_back.updated_at) as matched_at
+  from ${profileReaction} liked
+  inner join ${profileReaction} liked_back
+    on liked.profile_id = liked_back.target_profile_id
+    and liked.target_profile_id = liked_back.profile_id
+  where liked.reaction = 'like'
+    and liked_back.reaction = 'like'
+`);
