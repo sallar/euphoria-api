@@ -7,6 +7,7 @@ import {
   profileRelationshipTypeSchema,
   profileTypeSchema,
 } from "./enums";
+import { ref } from "./utils";
 
 const writableProfileFields = {
   name: t.String({ minLength: 1, maxLength: 120 }),
@@ -56,7 +57,7 @@ const ProfileFeedItem = t.Object({
 });
 
 const ProfileFeedResponse = t.Object({
-  data: t.Array(ProfileFeedItem),
+  data: t.Array(ref("ProfileFeedItem")),
   cursor: t.Nullable(t.Number({ minimum: 0 })),
 });
 

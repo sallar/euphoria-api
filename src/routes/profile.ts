@@ -1,60 +1,20 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import Elysia, { t } from "elysia";
 
-import { profile, profileReaction, profileUser } from "@/db/profile-schema";
+import { profile, profileUser } from "@/db/profile-schema";
 import { db } from "@/lib/db";
+import { findActiveProfile, findOwnedProfile, setProfileReaction } from "@/lib/profile-queries";
 import { commonModel } from "@/models/common";
 import { Profile, profileModel, profileSelectColumns } from "@/models/profile";
 import { ref } from "@/models/utils";
 import { auth } from "@/plugins/auth";
 
-const findOwnedProfile = (profileId: string, userId: string) =>
-  db
-    .select({ profileId: profileUser.profileId })
-    .from(profileUser)
-    .innerJoin(profile, eq(profileUser.profileId, profile.id))
-    .where(
-      and(
-        eq(profileUser.profileId, profileId),
-        eq(profileUser.userId, userId),
-        isNull(profile.deletedAt),
-      ),
-    )
-    .limit(1);
-
-const findActiveProfile = (profileId: string) =>
-  db
-    .select({ id: profile.id })
-    .from(profile)
-    .where(and(eq(profile.id, profileId), isNull(profile.deletedAt)))
-    .limit(1);
-
-const setProfileReaction = (
-  profileId: string,
-  targetProfileId: string,
-  reaction: "like" | "unlike",
-) =>
-  db
-    .insert(profileReaction)
-    .values({
-      profileId,
-      targetProfileId,
-      reaction,
-    })
-    .onConflictDoUpdate({
-      target: [profileReaction.profileId, profileReaction.targetProfileId],
-      set: {
-        reaction,
-        updatedAt: new Date(),
-      },
-    });
-
-export const profileRoutes = new Elysia()
+export const profileRoutes = new Elysia({ prefix: "/api/profile", tags: ["Profile"] })
   .use(auth)
   .use(profileModel)
   .use(commonModel)
   .get(
-    "/api/profile",
+    "/",
     async ({ status, user }) => {
       const profiles = await db.query.profile.findMany({
         columns: profileSelectColumns,
@@ -75,11 +35,10 @@ export const profileRoutes = new Elysia()
         200: t.Array(ref("Profile")),
         404: "MessageResponse",
       },
-      tags: ["Profile"],
     },
   )
   .post(
-    "/api/profile",
+    "/",
     async ({ body, status, user }) => {
       try {
         const createdProfile = await db.transaction(async (tx) => {
@@ -131,28 +90,15 @@ export const profileRoutes = new Elysia()
         409: "MessageResponse",
         500: "MessageResponse",
       },
-      tags: ["Profile"],
     },
   )
   .put(
-    "/api/profile/:id",
+    ":id",
     async ({ body, params, status, user }) => {
       if (Object.keys(body).length === 0)
         return status(400, { message: "No profile fields provided" });
 
-      const [profileAccess] = await db
-        .select({ profileId: profileUser.profileId })
-        .from(profileUser)
-        .innerJoin(profile, eq(profileUser.profileId, profile.id))
-        .where(
-          and(
-            eq(profileUser.profileId, params.id),
-            eq(profileUser.userId, user.id),
-            isNull(profile.deletedAt),
-          ),
-        )
-        .limit(1);
-
+      const [profileAccess] = await findOwnedProfile(params.id, user.id);
       if (!profileAccess) return status(404, { message: "Profile not found" });
 
       const [updatedProfile] = await db
@@ -174,11 +120,10 @@ export const profileRoutes = new Elysia()
         400: "MessageResponse",
         404: "MessageResponse",
       },
-      tags: ["Profile"],
     },
   )
   .post(
-    "/api/profile/:id/likes/:targetProfileId",
+    ":id/likes/:targetProfileId",
     async ({ params, status, user }) => {
       if (params.id === params.targetProfileId)
         return status(400, { message: "Profiles cannot like themselves" });
@@ -203,11 +148,10 @@ export const profileRoutes = new Elysia()
         400: "MessageResponse",
         404: "MessageResponse",
       },
-      tags: ["Profile"],
     },
   )
   .post(
-    "/api/profile/:id/unlikes/:targetProfileId",
+    ":id/unlikes/:targetProfileId",
     async ({ params, status, user }) => {
       if (params.id === params.targetProfileId)
         return status(400, { message: "Profiles cannot unlike themselves" });
@@ -232,6 +176,5 @@ export const profileRoutes = new Elysia()
         400: "MessageResponse",
         404: "MessageResponse",
       },
-      tags: ["Profile"],
     },
   );

@@ -1,9 +1,10 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { parsePgArray } from "drizzle-orm/pg-core";
 import Elysia, { t } from "elysia";
 
 import { profile, profileReaction, profileUser } from "@/db/profile-schema";
 import { db } from "@/lib/db";
+import { findOwnedProfile } from "@/lib/profile-queries";
 import { commonModel } from "@/models/common";
 import { type ProfileFeedItem, profileModel } from "@/models/profile";
 import { ref } from "@/models/utils";
@@ -37,26 +38,12 @@ const normalizeProfileFeedItem = (item: RawProfileFeedItem): ProfileFeedItem => 
   relationshipTypes: parseProfileArray(item.relationshipTypes),
 });
 
-const findOwnedProfile = (profileId: string, userId: string) =>
-  db
-    .select({ profileId: profileUser.profileId })
-    .from(profileUser)
-    .innerJoin(profile, eq(profileUser.profileId, profile.id))
-    .where(
-      and(
-        eq(profileUser.profileId, profileId),
-        eq(profileUser.userId, userId),
-        isNull(profile.deletedAt),
-      ),
-    )
-    .limit(1);
-
-export const feedRoutes = new Elysia()
+export const feedRoutes = new Elysia({ prefix: "/api/profile", tags: ["Feed"] })
   .use(auth)
   .use(profileModel)
   .use(commonModel)
   .get(
-    "/api/profile/:profileId/feed",
+    ":profileId/feed",
     async ({ params, query, status, user }) => {
       const minAge = Math.trunc(query.minAge);
       const maxAge = Math.trunc(query.maxAge);
@@ -173,6 +160,5 @@ export const feedRoutes = new Elysia()
         400: "MessageResponse",
         404: "MessageResponse",
       },
-      tags: ["Feed"],
     },
   );
