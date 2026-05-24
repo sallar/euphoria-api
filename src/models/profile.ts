@@ -49,7 +49,20 @@ const ProfileReactionStatus = t.Object({
   reaction: profileReactionSchema,
 });
 
+const ProfileFeedItem = t.Object({
+  ...Profile.properties,
+  age: t.Number({ minimum: 0 }),
+  distance: t.Number({ minimum: 0 }),
+});
+
+const ProfileFeedResponse = t.Object({
+  data: t.Array(ProfileFeedItem),
+  cursor: t.Nullable(t.Number({ minimum: 0 })),
+});
+
 export type Profile = typeof Profile.static;
+export type ProfileFeedItem = typeof ProfileFeedItem.static;
+export type ProfileFeedResponse = typeof ProfileFeedResponse.static;
 export const profileSelectColumns = Object.fromEntries(
   Object.keys(Profile.properties).map((key) => [key, true]),
 ) as {
@@ -58,6 +71,8 @@ export const profileSelectColumns = Object.fromEntries(
 
 export const profileModel = new Elysia({ name: "profile-model" }).model({
   Profile,
+  ProfileFeedItem,
+  ProfileFeedResponse,
   ProfileInsert,
   ProfileReactionStatus,
   ProfileUpdate,

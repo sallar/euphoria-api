@@ -3,6 +3,7 @@ import { openapi } from "@elysia/openapi";
 import { Elysia } from "elysia";
 
 import { OpenAPI } from "@/lib/auth";
+import { feedRoutes } from "@/routes/feed";
 import { profileRoutes } from "@/routes/profile";
 
 export const app = new Elysia()
@@ -15,6 +16,7 @@ export const app = new Elysia()
       },
     }),
   )
+  .use(feedRoutes)
   .use(profileRoutes)
   .get("/", () => ({ healthy: true }))
   .listen(3000);

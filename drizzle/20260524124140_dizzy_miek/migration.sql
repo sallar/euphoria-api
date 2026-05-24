@@ -1,0 +1,1 @@
+CREATE INDEX "profile_feed_traits_idx" ON "profile" ("gender","orientation","date_of_birth") WHERE "deleted_at" is null and "hidden" = false;

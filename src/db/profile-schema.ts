@@ -205,6 +205,9 @@ export const profile = pgTable(
     index("profile_feed_birth_date_idx")
       .on(table.dateOfBirth)
       .where(sql`${table.deletedAt} is null and ${table.hidden} = false`),
+    index("profile_feed_traits_idx")
+      .on(table.gender, table.orientation, table.dateOfBirth)
+      .where(sql`${table.deletedAt} is null and ${table.hidden} = false`),
     index("profile_last_seen_at_idx").on(table.lastSeenAt.desc()),
     index("profile_gender_idx").on(table.gender),
     index("profile_gender_tags_idx").using("gin", table.genderTags),
