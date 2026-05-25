@@ -266,8 +266,8 @@ export const profilePhoto = pgTable(
     index("profile_photo_public_gallery_idx")
       .on(table.profileId, table.position, table.createdAt)
       .where(sql`${table.deletedAt} is null and ${table.connectionOnly} = false`),
-    uniqueIndex("profile_photo_object_unique_idx")
-      .on(table.objectBucket, table.objectKey)
+    uniqueIndex("profile_photo_profile_object_unique_idx")
+      .on(table.profileId, table.objectBucket, table.objectKey)
       .where(sql`${table.deletedAt} is null`),
   ],
 );

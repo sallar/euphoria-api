@@ -1,0 +1,2 @@
+DROP INDEX "profile_photo_object_unique_idx";--> statement-breakpoint
+CREATE UNIQUE INDEX "profile_photo_profile_object_unique_idx" ON "profile_photo" ("profile_id","object_bucket","object_key") WHERE "deleted_at" is null;
