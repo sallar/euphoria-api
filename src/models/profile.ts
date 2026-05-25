@@ -9,6 +9,15 @@ import {
 } from "./enums";
 import { ref } from "./utils";
 
+const ProfilePhoto = t.Object({
+  id: t.String({ format: "uuid" }),
+  position: t.Number({ minimum: 0 }),
+  connectionOnly: t.Boolean(),
+  hash: t.String(),
+  url: t.String(),
+});
+export type ProfilePhoto = typeof ProfilePhoto.static;
+
 const writableProfileFields = {
   name: t.String({ minLength: 1, maxLength: 120 }),
   bio: t.Nullable(t.String()),
@@ -53,6 +62,7 @@ const ProfileReactionStatus = t.Object({
 const ProfileFeedItem = t.Object({
   ...Profile.properties,
   age: t.Number({ minimum: 0 }),
+  photos: t.Array(ProfilePhoto),
   distance: t.Number({ minimum: 0 }),
 });
 
@@ -77,4 +87,5 @@ export const profileModel = new Elysia({ name: "profile-model" }).model({
   ProfileInsert,
   ProfileReactionStatus,
   ProfileUpdate,
+  ProfilePhoto,
 });

@@ -4,7 +4,7 @@ import Elysia, { t } from "elysia";
 
 import { profile, profileReaction, profileUser } from "@/db/profile-schema";
 import { db } from "@/lib/db";
-import { findOwnedProfile } from "@/lib/profile-queries";
+import { findOwnedProfile, findPublicProfilePhotos } from "@/lib/profile-queries";
 import { commonModel } from "@/models/common";
 import { profileTypeSchema } from "@/models/enums";
 import { type ProfileFeedItem, profileModel } from "@/models/profile";
@@ -21,7 +21,8 @@ const feedArrayFields = [
 ] as const;
 
 type FeedArrayField = (typeof feedArrayFields)[number];
-type RawProfileFeedItem = Omit<ProfileFeedItem, FeedArrayField> & {
+type ProfileFeedItemWithoutPhotos = Omit<ProfileFeedItem, "photos">;
+type RawProfileFeedItem = Omit<ProfileFeedItemWithoutPhotos, FeedArrayField> & {
   [Key in FeedArrayField]: ProfileFeedItem[Key] | string;
 };
 
@@ -31,7 +32,7 @@ const parseProfileArray = <Value extends string>(value: Value[] | string | undef
   return parsePgArray(value) as Value[];
 };
 
-const normalizeProfileFeedItem = (item: RawProfileFeedItem): ProfileFeedItem => ({
+const normalizeProfileFeedItem = (item: RawProfileFeedItem): ProfileFeedItemWithoutPhotos => ({
   ...item,
   genderTags: parseProfileArray(item.genderTags),
   genderInterests: parseProfileArray(item.genderInterests),
@@ -140,7 +141,16 @@ export const feedRoutes = new Elysia({ prefix: "/api/profile", tags: ["Feed"] })
       `)) as RawProfileFeedItem[];
 
       const normalizedFeed = feed.map(normalizeProfileFeedItem);
-      const data = normalizedFeed.slice(0, pageSize);
+      const dataWithoutPhotos = normalizedFeed.slice(0, pageSize);
+      const photosByProfileId = await findPublicProfilePhotos(
+        dataWithoutPhotos.map(({ id }) => id),
+      );
+      const data = dataWithoutPhotos.map(
+        (item): ProfileFeedItem => ({
+          ...item,
+          photos: photosByProfileId.get(item.id) ?? [],
+        }),
+      );
       const cursor =
         normalizedFeed.length > pageSize ? (data[data.length - 1]?.distance ?? null) : null;
 

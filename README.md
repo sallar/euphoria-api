@@ -37,3 +37,7 @@ Set these via a `.env` file or directly in `docker-compose.yml`:
 | `DATABASE_URL`        | `postgresql://...` (in compose)  | Postgres connection    |
 | `BETTER_AUTH_SECRET`  | `change-me`                      | Better Auth secret key |
 | `BETTER_AUTH_URL`     | `http://localhost:3000`          | Better Auth base URL   |
+| `BACKBLAZE_S3_ACCESS_KEY_ID` |                                  | Backblaze S3 key ID    |
+| `BACKBLAZE_S3_SECRET_ACCESS_KEY` |                              | Backblaze S3 application key |
+| `BACKBLAZE_S3_ENDPOINT` |                                | Backblaze S3 endpoint, e.g. `https://s3.us-west-004.backblazeb2.com` |
+| `BACKBLAZE_S3_REGION` |                                  | Optional Backblaze S3 region; used to build the endpoint if `BACKBLAZE_S3_ENDPOINT` is unset |
