@@ -5,12 +5,14 @@ import {
   date,
   geometry,
   index,
+  integer,
   pgEnum,
   pgTable,
   pgView,
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -234,6 +236,39 @@ export const profileUser = pgTable(
     primaryKey({ columns: [table.profileId, table.userId] }),
     index("profile_user_profile_id_idx").on(table.profileId),
     index("profile_user_user_id_idx").on(table.userId),
+  ],
+);
+
+export const profilePhoto = pgTable(
+  "profile_photo",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profile.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    objectBucket: varchar("object_bucket", { length: 255 }).notNull(),
+    objectKey: text("object_key").notNull(),
+    hash: varchar("hash", { length: 255 }).notNull(),
+    position: integer("position").default(0).notNull(),
+    connectionOnly: boolean("connection_only").default(false).notNull(),
+  },
+  (table) => [
+    index("profile_photo_profile_id_idx").on(table.profileId),
+    index("profile_photo_gallery_idx")
+      .on(table.profileId, table.position, table.createdAt)
+      .where(sql`${table.deletedAt} is null`),
+    index("profile_photo_public_gallery_idx")
+      .on(table.profileId, table.position, table.createdAt)
+      .where(sql`${table.deletedAt} is null and ${table.connectionOnly} = false`),
+    uniqueIndex("profile_photo_object_unique_idx")
+      .on(table.objectBucket, table.objectKey)
+      .where(sql`${table.deletedAt} is null`),
   ],
 );
 

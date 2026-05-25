@@ -15,9 +15,16 @@ export const relations = defineRelations(schema, (r) => ({
     sessions: r.many.session(),
   },
   profile: {
+    photos: r.many.profilePhoto(),
     users: r.many.user({
       from: r.profile.id.through(r.profileUser.profileId),
       to: r.user.id.through(r.profileUser.userId),
+    }),
+  },
+  profilePhoto: {
+    profile: r.one.profile({
+      from: r.profilePhoto.profileId,
+      to: r.profile.id,
     }),
   },
   session: {
