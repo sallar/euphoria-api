@@ -368,12 +368,10 @@ const dateOfBirthFor = (index: number) => {
 };
 
 const profileNameFor = (config: ProfileConfig, index: number) => {
-  const suffix = pad(index + 1);
+  if (config.profileType === "couple") return `${pick(coupleNames, index)}`;
+  if (config.profileType === "group") return `${pick(groupNames, index)}`;
 
-  if (config.profileType === "couple") return `${pick(coupleNames, index)} ${suffix}`;
-  if (config.profileType === "group") return `${pick(groupNames, index)} ${suffix}`;
-
-  return `${pick(soloNames, index)} ${suffix}`;
+  return `${pick(soloNames, index)}`;
 };
 
 const relationshipSummary = (relationshipTypes: ProfileRelationshipType[]) =>
