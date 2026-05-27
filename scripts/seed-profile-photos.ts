@@ -1,4 +1,5 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
+import { randomInt } from "node:crypto";
 
 import { profile, profilePhoto } from "@/db/profile-schema";
 import { db } from "@/lib/db";
@@ -9,6 +10,7 @@ type PhotoSource = {
 };
 
 type ProfilePhotoSeed = typeof profilePhoto.$inferInsert;
+type PhotoDealer = () => PhotoSource[];
 
 const photosPath = new URL("./photos.json", import.meta.url);
 const objectBucket = "euphoria-demo";
@@ -32,20 +34,65 @@ const readPhotoSources = async () => {
   return photos;
 };
 
-const samplePhotos = (photos: PhotoSource[]) => {
+const shufflePhotos = (photos: PhotoSource[]) => {
   const shuffled = photos.slice();
 
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
-    const randomIndex = Math.floor(Math.random() * (index + 1));
+    const randomIndex = randomInt(index + 1);
     [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex]!, shuffled[index]!];
   }
 
-  return shuffled.slice(0, photosPerProfile);
+  return shuffled;
 };
 
-const createProfilePhotoSeeds = (profileIds: string[], photos: PhotoSource[]) =>
+const createPhotoDealer = (photos: PhotoSource[]): PhotoDealer => {
+  let deck = shufflePhotos(photos);
+  let deckIndex = 0;
+  let previousProfileKeys = new Set<string>();
+  const canAvoidNeighborOverlap = photos.length >= photosPerProfile * 2;
+
+  return () => {
+    const selected: PhotoSource[] = [];
+    const selectedKeys = new Set<string>();
+
+    while (selected.length < photosPerProfile) {
+      if (deckIndex >= deck.length) {
+        const blockedKeys = new Set([...previousProfileKeys, ...selectedKeys]);
+        const nextDeck = shufflePhotos(photos);
+
+        deck = canAvoidNeighborOverlap
+          ? [
+              ...nextDeck.filter((photo) => !blockedKeys.has(photo.key)),
+              ...nextDeck.filter((photo) => blockedKeys.has(photo.key)),
+            ]
+          : nextDeck;
+        deckIndex = 0;
+      }
+
+      const photo = deck[deckIndex]!;
+      deckIndex += 1;
+
+      if (selectedKeys.has(photo.key)) {
+        continue;
+      }
+
+      if (canAvoidNeighborOverlap && previousProfileKeys.has(photo.key)) {
+        continue;
+      }
+
+      selected.push(photo);
+      selectedKeys.add(photo.key);
+    }
+
+    previousProfileKeys = selectedKeys;
+
+    return selected;
+  };
+};
+
+const createProfilePhotoSeeds = (profileIds: string[], dealPhotos: PhotoDealer) =>
   profileIds.flatMap((profileId): ProfilePhotoSeed[] =>
-    samplePhotos(photos).map((photo, position) => ({
+    dealPhotos().map((photo, position) => ({
       profileId,
       objectBucket,
       objectKey: photo.key,
@@ -57,6 +104,7 @@ const createProfilePhotoSeeds = (profileIds: string[], photos: PhotoSource[]) =>
 
 const main = async () => {
   const photos = await readPhotoSources();
+  const dealPhotos = createPhotoDealer(photos);
   const profiles = await db
     .select({ id: profile.id })
     .from(profile)
@@ -82,7 +130,7 @@ const main = async () => {
         ),
       )
       .returning({ id: profilePhoto.id });
-    const seeds = createProfilePhotoSeeds(batchProfileIds, photos);
+    const seeds = createProfilePhotoSeeds(batchProfileIds, dealPhotos);
     const inserted = await db.insert(profilePhoto).values(seeds).returning({ id: profilePhoto.id });
 
     deletedCount += deleted.length;
