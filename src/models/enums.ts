@@ -2,6 +2,13 @@ import { createSchemaFactory } from "drizzle-orm/typebox-legacy";
 import { t } from "elysia";
 
 import {
+  devicePlatformEnum as notificationDevicePlatformEnum,
+  notificationChannelEnum as notificationChannelPgEnum,
+  notificationDeliveryStatusEnum as notificationDeliveryStatusPgEnum,
+  notificationTypeEnum as notificationTypePgEnum,
+  pushProviderEnum as notificationPushProviderEnum,
+} from "@/db/notification-schema";
+import {
   profileGenderEnum,
   profileOrientationEnum,
   profileReactionEnum,
@@ -20,3 +27,10 @@ export const profileOrientationSchema = createSelectSchema(profileOrientationEnu
 export const profileRelationshipTypeSchema = createSelectSchema(profileRelationshipTypeEnum);
 export const profileUserRoleSchema = createSelectSchema(profileUserRoleEnum);
 export const profileReactionSchema = createSelectSchema(profileReactionEnum);
+export const notificationTypeSchema = createSelectSchema(notificationTypePgEnum);
+export const notificationChannelSchema = createSelectSchema(notificationChannelPgEnum);
+export const notificationDeliveryStatusSchema = createSelectSchema(
+  notificationDeliveryStatusPgEnum,
+);
+export const pushProviderSchema = createSelectSchema(notificationPushProviderEnum);
+export const devicePlatformSchema = createSelectSchema(notificationDevicePlatformEnum);

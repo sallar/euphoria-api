@@ -5,6 +5,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "bun run --watch src/index.ts",
     "auth:token": "bun run scripts/generate-auth-token.ts",
+    "notifications:test": "bun run scripts/send-test-notification.ts",
     "db:seed:profiles": "bun run scripts/seed-profiles.ts",
     "db:seed:profile-photos": "bun run scripts/seed-profile-photos.ts",
     "fmt": "oxfmt",

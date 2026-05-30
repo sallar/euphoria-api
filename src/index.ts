@@ -4,6 +4,7 @@ import { Elysia } from "elysia";
 
 import { OpenAPI } from "@/lib/auth";
 import { feedRoutes } from "@/routes/feed";
+import { notificationRoutes } from "@/routes/notifications";
 import { profileRoutes } from "@/routes/profile";
 
 import { auth } from "./plugins/auth";
@@ -20,6 +21,7 @@ export const app = new Elysia()
   )
   .use(auth)
   .use(feedRoutes)
+  .use(notificationRoutes)
   .use(profileRoutes)
   .get("/", () => ({ healthy: true }), {
     detail: {
