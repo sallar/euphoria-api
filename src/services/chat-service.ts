@@ -106,7 +106,10 @@ const getProfilePair = (profileId: string, targetProfileId: string) =>
     ? { profileOneId: profileId, profileTwoId: targetProfileId }
     : { profileOneId: targetProfileId, profileTwoId: profileId };
 
-const getOtherProfileId = (conversation: ConversationRow, profileId: string) =>
+const getOtherProfileId = (
+  conversation: Pick<typeof chatConversation.$inferSelect, "profileOneId" | "profileTwoId">,
+  profileId: string,
+) =>
   conversation.profileOneId === profileId ? conversation.profileTwoId : conversation.profileOneId;
 
 const toConversation = (row: RawConversationRow): ChatConversation => ({
@@ -273,6 +276,188 @@ const getConversationAccess = async ({
   };
 };
 
+const getConversationParticipantIds = async (conversationId: string) => {
+  const [conversation] = await db
+    .select({
+      profileOneId: chatConversation.profileOneId,
+      profileTwoId: chatConversation.profileTwoId,
+    })
+    .from(chatConversation)
+    .where(eq(chatConversation.id, conversationId))
+    .limit(1);
+
+  return conversation ? [conversation.profileOneId, conversation.profileTwoId] : [];
+};
+
+const listConversationPeerProfileIds = async (profileId: string) => {
+  const rows = await db
+    .select({
+      profileOneId: chatConversation.profileOneId,
+      profileTwoId: chatConversation.profileTwoId,
+    })
+    .from(chatConversation)
+    .where(
+      or(
+        eq(chatConversation.profileOneId, profileId),
+        eq(chatConversation.profileTwoId, profileId),
+      ),
+    );
+
+  return Array.from(
+    new Set(rows.map((row) => getOtherProfileId(row, profileId)).filter((id) => id !== profileId)),
+  );
+};
+
+const loadChatConversationForProfile = async ({
+  conversationId,
+  profileId,
+}: {
+  conversationId: string;
+  profileId: string;
+}) => {
+  const rows = (await db.execute(sql`
+    with conversation_row as (
+      select
+        conversation.id,
+        conversation.profile_one_id as "profileOneId",
+        conversation.profile_two_id as "profileTwoId",
+        case
+          when conversation.profile_one_id = ${profileId} then conversation.profile_two_id
+          else conversation.profile_one_id
+        end as "matchedProfileId",
+        conversation.last_message_at as "lastMessageAt",
+        conversation.created_at as "createdAt",
+        conversation.updated_at as "updatedAt",
+        coalesce(conversation.last_message_at, conversation.created_at) as "sortAt"
+      from ${chatConversation} conversation
+      where conversation.id = ${conversationId}
+        and (
+          conversation.profile_one_id = ${profileId}
+          or conversation.profile_two_id = ${profileId}
+        )
+    )
+    select
+      conversation_row.id,
+      conversation_row."profileOneId",
+      conversation_row."profileTwoId",
+      conversation_row."matchedProfileId",
+      matched_profile.name as "matchedProfileName",
+      matched_profile.profile_type as "matchedProfileType",
+      exists (
+        select 1
+        from ${profileReaction} outgoing_like
+        where outgoing_like.profile_id = ${profileId}
+          and outgoing_like.target_profile_id = conversation_row."matchedProfileId"
+          and outgoing_like.reaction = 'like'
+      ) and exists (
+        select 1
+        from ${profileReaction} incoming_like
+        where incoming_like.profile_id = conversation_row."matchedProfileId"
+          and incoming_like.target_profile_id = ${profileId}
+          and incoming_like.reaction = 'like'
+      ) as "isMatched",
+      conversation_row."lastMessageAt",
+      last_message.id as "lastMessageId",
+      last_message.sender_profile_id as "lastMessageSenderProfileId",
+      last_message.message_type as "lastMessageType",
+      last_message.content as "lastMessageContent",
+      last_message.created_at as "lastMessageCreatedAt",
+      conversation_row."createdAt",
+      conversation_row."updatedAt",
+      conversation_row."sortAt"
+    from conversation_row
+    inner join ${profile} matched_profile
+      on matched_profile.id = conversation_row."matchedProfileId"
+    left join lateral (
+      select
+        message.id,
+        message.sender_profile_id,
+        message.message_type,
+        message.content,
+        message.created_at
+      from ${chatMessage} message
+      where message.conversation_id = conversation_row.id
+      order by message.created_at desc, message.id desc
+      limit 1
+    ) last_message on true
+  `)) as RawConversationRow[];
+
+  const row = rows[0];
+  return row ? toConversation(row) : null;
+};
+
+export const broadcastConversationUpsert = async (conversationId: string) => {
+  const participantProfileIds = await getConversationParticipantIds(conversationId);
+
+  for (const participantProfileId of participantProfileIds) {
+    const conversation = await loadChatConversationForProfile({
+      conversationId,
+      profileId: participantProfileId,
+    });
+
+    if (!conversation) continue;
+
+    chatSockets.sendToProfile(participantProfileId, {
+      type: "conversation_upsert",
+      conversation,
+    });
+    chatSockets.sendToProfile(participantProfileId, {
+      type: "presence_snapshot",
+      profiles: [
+        {
+          profileId: conversation.matchedProfileId,
+          online: chatSockets.isProfileOnline(conversation.matchedProfileId),
+        },
+      ],
+    });
+  }
+};
+
+export const getChatPresenceSnapshot = async ({
+  profileId,
+  userId,
+}: {
+  profileId: string;
+  userId: string;
+}): Promise<
+  ChatServiceResult<
+    {
+      profileId: string;
+      online: boolean;
+    }[]
+  >
+> => {
+  const [profileAccess] = await findOwnedProfile(profileId, userId);
+  if (!profileAccess) {
+    return {
+      ok: false,
+      code: "profile_not_found",
+      message: "Profile not found",
+    };
+  }
+
+  await syncConversationsForProfileMatches(profileId);
+
+  const peerProfileIds = await listConversationPeerProfileIds(profileId);
+  return {
+    ok: true,
+    data: peerProfileIds.map((peerProfileId) => ({
+      profileId: peerProfileId,
+      online: chatSockets.isProfileOnline(peerProfileId),
+    })),
+  };
+};
+
+export const broadcastChatPresenceChanged = async (profileId: string, online: boolean) => {
+  const peerProfileIds = await listConversationPeerProfileIds(profileId);
+
+  chatSockets.sendToProfiles(peerProfileIds, {
+    type: "presence_changed",
+    profileId,
+    online,
+  });
+};
+
 const areProfilesMatched = async (profileId: string, targetProfileId: string) => {
   const [result] = await db
     .select({
@@ -310,7 +495,7 @@ const notifyAbsentRecipientUsers = async ({
   senderProfileId: string;
   senderUserId: string;
 }) => {
-  const activeUserIds = chatSockets.getActiveUserIds(conversation.id);
+  const activeUserIds = chatSockets.getActiveUserIdsForProfile(recipientProfileId);
   const [senderProfile] = await db
     .select({
       name: profile.name,
@@ -384,7 +569,7 @@ export const setProfileReactionAndSyncConversation = async ({
   const pair = getProfilePair(profileId, targetProfileId);
   const pairLockKey = `chat_conversation:${pair.profileOneId}:${pair.profileTwoId}`;
 
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${pairLockKey}))`);
 
     await tx
@@ -475,6 +660,12 @@ export const setProfileReactionAndSyncConversation = async ({
       conversationId: existingConversation?.id ?? null,
     };
   });
+
+  if (result.matched && result.conversationId) {
+    await broadcastConversationUpsert(result.conversationId);
+  }
+
+  return result;
 };
 
 export const listChatConversations = async ({
@@ -593,71 +784,8 @@ export const getChatConversation = async ({
   const access = await getConversationAccess({ conversationId, profileId, userId });
   if (!access.ok) return access;
 
-  const rows = (await db.execute(sql`
-    with conversation_row as (
-      select
-        conversation.id,
-        conversation.profile_one_id as "profileOneId",
-        conversation.profile_two_id as "profileTwoId",
-        case
-          when conversation.profile_one_id = ${profileId} then conversation.profile_two_id
-          else conversation.profile_one_id
-        end as "matchedProfileId",
-        conversation.last_message_at as "lastMessageAt",
-        conversation.created_at as "createdAt",
-        conversation.updated_at as "updatedAt",
-        coalesce(conversation.last_message_at, conversation.created_at) as "sortAt"
-      from ${chatConversation} conversation
-      where conversation.id = ${conversationId}
-    )
-    select
-      conversation_row.id,
-      conversation_row."profileOneId",
-      conversation_row."profileTwoId",
-      conversation_row."matchedProfileId",
-      matched_profile.name as "matchedProfileName",
-      matched_profile.profile_type as "matchedProfileType",
-      exists (
-        select 1
-        from ${profileReaction} outgoing_like
-        where outgoing_like.profile_id = ${profileId}
-          and outgoing_like.target_profile_id = conversation_row."matchedProfileId"
-          and outgoing_like.reaction = 'like'
-      ) and exists (
-        select 1
-        from ${profileReaction} incoming_like
-        where incoming_like.profile_id = conversation_row."matchedProfileId"
-          and incoming_like.target_profile_id = ${profileId}
-          and incoming_like.reaction = 'like'
-      ) as "isMatched",
-      conversation_row."lastMessageAt",
-      last_message.id as "lastMessageId",
-      last_message.sender_profile_id as "lastMessageSenderProfileId",
-      last_message.message_type as "lastMessageType",
-      last_message.content as "lastMessageContent",
-      last_message.created_at as "lastMessageCreatedAt",
-      conversation_row."createdAt",
-      conversation_row."updatedAt",
-      conversation_row."sortAt"
-    from conversation_row
-    inner join ${profile} matched_profile
-      on matched_profile.id = conversation_row."matchedProfileId"
-    left join lateral (
-      select
-        message.id,
-        message.sender_profile_id,
-        message.message_type,
-        message.content,
-        message.created_at
-      from ${chatMessage} message
-      where message.conversation_id = conversation_row.id
-      order by message.created_at desc, message.id desc
-      limit 1
-    ) last_message on true
-  `)) as RawConversationRow[];
-
-  const row = rows[0];
-  if (!row) {
+  const conversation = await loadChatConversationForProfile({ conversationId, profileId });
+  if (!conversation) {
     return {
       ok: false,
       code: "conversation_not_found",
@@ -667,7 +795,7 @@ export const getChatConversation = async ({
 
   return {
     ok: true,
-    data: toConversation(row),
+    data: conversation,
   };
 };
 
@@ -801,11 +929,13 @@ export const sendTextMessage = async ({
 
   const message = toMessage(row);
 
-  chatSockets.sendToConversation(conversationId, {
+  chatSockets.sendToConversationSubscribers(conversationId, {
     type: "message",
+    conversationId,
     message,
     clientMessageId,
   });
+  await broadcastConversationUpsert(conversationId);
 
   try {
     await notifyAbsentRecipientUsers({
@@ -913,8 +1043,9 @@ export const setMessageReaction = async ({
     };
   }
 
-  chatSockets.sendToConversation(conversationId, {
+  chatSockets.sendToConversationSubscribers(conversationId, {
     type: "reaction",
+    conversationId,
     messageId,
     reactionCounts: updatedMessage.reactionCounts as ChatMessageReactionCount[],
     profileId,

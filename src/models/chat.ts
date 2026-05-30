@@ -87,22 +87,34 @@ const ChatSocketMessage = t.Union([
     type: t.Literal("ping"),
   }),
   t.Object({
+    type: t.Literal("subscribe_conversation"),
+    conversationId: uuid,
+  }),
+  t.Object({
+    type: t.Literal("unsubscribe_conversation"),
+    conversationId: uuid,
+  }),
+  t.Object({
     type: t.Literal("send_message"),
+    conversationId: uuid,
     text: messageText,
     replyToMessageId: t.Optional(t.Nullable(uuid)),
     clientMessageId: t.Optional(t.String({ minLength: 1, maxLength: 120 })),
   }),
   t.Object({
     type: t.Literal("typing"),
+    conversationId: uuid,
     isTyping: t.Boolean(),
   }),
   t.Object({
     type: t.Literal("add_reaction"),
+    conversationId: uuid,
     messageId: uuid,
     emoji: reactionEmoji,
   }),
   t.Object({
     type: t.Literal("remove_reaction"),
+    conversationId: uuid,
     messageId: uuid,
     emoji: reactionEmoji,
   }),
@@ -119,15 +131,29 @@ export type ChatSocketMessage = typeof ChatSocketMessage.static;
 export type ChatSocketEvent =
   | {
       type: "connected";
+      profileId: string;
+    }
+  | {
+      type: "conversation_subscribed";
+      conversation: ChatConversation;
+    }
+  | {
+      type: "conversation_unsubscribed";
+      conversationId: string;
+    }
+  | {
+      type: "conversation_upsert";
       conversation: ChatConversation;
     }
   | {
       type: "message";
+      conversationId: string;
       message: ChatMessage;
       clientMessageId?: string;
     }
   | {
       type: "reaction";
+      conversationId: string;
       messageId: string;
       reactionCounts: ChatMessageReactionCount[];
       profileId: string;
@@ -136,11 +162,19 @@ export type ChatSocketEvent =
     }
   | {
       type: "typing";
+      conversationId: string;
       profileId: string;
       isTyping: boolean;
     }
   | {
-      type: "presence";
+      type: "presence_snapshot";
+      profiles: {
+        profileId: string;
+        online: boolean;
+      }[];
+    }
+  | {
+      type: "presence_changed";
       profileId: string;
       online: boolean;
     }
@@ -149,6 +183,7 @@ export type ChatSocketEvent =
       code: string;
       message: string;
       clientMessageId?: string;
+      conversationId?: string;
     }
   | {
       type: "pong";

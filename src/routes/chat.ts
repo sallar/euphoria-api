@@ -4,7 +4,9 @@ import { chatModel } from "@/models/chat";
 import { commonModel } from "@/models/common";
 import { auth } from "@/plugins/auth";
 import {
+  broadcastChatPresenceChanged,
   getChatConversation,
+  getChatPresenceSnapshot,
   listChatConversations,
   listChatMessages,
   sendTextMessage,
@@ -211,18 +213,16 @@ export const chatRoutes = new Elysia({ prefix: "/api/chat", tags: ["Chat"] })
       },
     },
   )
-  .ws("/profiles/:profileId/conversations/:conversationId/ws", {
+  .ws("/profiles/:profileId/ws", {
     auth: true,
     params: t.Object({
       profileId: uuidParam,
-      conversationId: uuidParam,
     }),
     body: "ChatSocketMessage",
     async open(ws) {
-      const { conversationId, profileId } = ws.data.params;
-      const result = await getChatConversation({
+      const { profileId } = ws.data.params;
+      const result = await getChatPresenceSnapshot({
         profileId,
-        conversationId,
         userId: ws.data.user.id,
       });
 
@@ -236,7 +236,7 @@ export const chatRoutes = new Elysia({ prefix: "/api/chat", tags: ["Chat"] })
         return;
       }
 
-      chatSockets.add(conversationId, {
+      const { wasFirstProfileSocket } = chatSockets.add({
         id: ws.id,
         userId: ws.data.user.id,
         profileId,
@@ -245,32 +245,82 @@ export const chatRoutes = new Elysia({ prefix: "/api/chat", tags: ["Chat"] })
 
       ws.send({
         type: "connected",
-        conversation: result.data,
+        profileId,
+      });
+      ws.send({
+        type: "presence_snapshot",
+        profiles: result.data,
       });
 
-      chatSockets.sendToConversation(
-        conversationId,
-        {
-          type: "presence",
-          profileId,
-          online: true,
-        },
-        { excludeSocketId: ws.id },
-      );
+      if (wasFirstProfileSocket) await broadcastChatPresenceChanged(profileId, true);
     },
     async message(ws, message) {
-      const { conversationId, profileId } = ws.data.params;
+      const { profileId } = ws.data.params;
 
       if (message.type === "ping") {
         ws.send({ type: "pong" });
         return;
       }
 
+      if (message.type === "subscribe_conversation") {
+        const result = await getChatConversation({
+          profileId,
+          conversationId: message.conversationId,
+          userId: ws.data.user.id,
+        });
+
+        if (!result.ok) {
+          ws.send({
+            type: "error",
+            code: result.code,
+            message: result.message,
+            conversationId: message.conversationId,
+          });
+          return;
+        }
+
+        chatSockets.subscribe(ws.id, message.conversationId);
+        ws.send({
+          type: "conversation_subscribed",
+          conversation: result.data,
+        });
+        ws.send({
+          type: "presence_snapshot",
+          profiles: [
+            {
+              profileId: result.data.matchedProfileId,
+              online: chatSockets.isProfileOnline(result.data.matchedProfileId),
+            },
+          ],
+        });
+        return;
+      }
+
+      if (message.type === "unsubscribe_conversation") {
+        chatSockets.unsubscribe(ws.id, message.conversationId);
+        ws.send({
+          type: "conversation_unsubscribed",
+          conversationId: message.conversationId,
+        });
+        return;
+      }
+
       if (message.type === "typing") {
-        chatSockets.sendToConversation(
-          conversationId,
+        if (!chatSockets.isSocketSubscribed(ws.id, message.conversationId)) {
+          ws.send({
+            type: "error",
+            code: "not_subscribed",
+            message: "Subscribe to the conversation before sending typing events",
+            conversationId: message.conversationId,
+          });
+          return;
+        }
+
+        chatSockets.sendToConversationSubscribers(
+          message.conversationId,
           {
             type: "typing",
+            conversationId: message.conversationId,
             profileId,
             isTyping: message.isTyping,
           },
@@ -282,7 +332,7 @@ export const chatRoutes = new Elysia({ prefix: "/api/chat", tags: ["Chat"] })
       if (message.type === "send_message") {
         const result = await sendTextMessage({
           profileId,
-          conversationId,
+          conversationId: message.conversationId,
           userId: ws.data.user.id,
           text: message.text,
           replyToMessageId: message.replyToMessageId,
@@ -295,6 +345,17 @@ export const chatRoutes = new Elysia({ prefix: "/api/chat", tags: ["Chat"] })
             code: result.code,
             message: result.message,
             clientMessageId: message.clientMessageId,
+            conversationId: message.conversationId,
+          });
+          return;
+        }
+
+        if (!chatSockets.isSocketSubscribed(ws.id, message.conversationId)) {
+          ws.send({
+            type: "message",
+            conversationId: message.conversationId,
+            message: result.data,
+            clientMessageId: message.clientMessageId,
           });
         }
 
@@ -303,7 +364,7 @@ export const chatRoutes = new Elysia({ prefix: "/api/chat", tags: ["Chat"] })
 
       const result = await setMessageReaction({
         profileId,
-        conversationId,
+        conversationId: message.conversationId,
         messageId: message.messageId,
         userId: ws.data.user.id,
         emoji: message.emoji,
@@ -315,19 +376,14 @@ export const chatRoutes = new Elysia({ prefix: "/api/chat", tags: ["Chat"] })
           type: "error",
           code: result.code,
           message: result.message,
+          conversationId: message.conversationId,
         });
       }
     },
-    close(ws) {
-      const { conversationId, profileId } = ws.data.params;
-      chatSockets.remove(conversationId, ws.id);
-
-      if (!chatSockets.isProfileInConversation(conversationId, profileId)) {
-        chatSockets.sendToConversation(conversationId, {
-          type: "presence",
-          profileId,
-          online: false,
-        });
+    async close(ws) {
+      const result = chatSockets.remove(ws.id);
+      if (result?.wasLastProfileSocket) {
+        await broadcastChatPresenceChanged(result.profileId, false);
       }
     },
   });
