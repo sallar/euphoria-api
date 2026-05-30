@@ -39,10 +39,56 @@ export const relations = defineRelations(schema, (r) => ({
     }),
   },
   profile: {
+    chatMessageReactions: r.many.chatMessageReaction(),
+    conversationsAsProfileOne: r.many.chatConversation({
+      from: r.profile.id,
+      to: r.chatConversation.profileOneId,
+    }),
+    conversationsAsProfileTwo: r.many.chatConversation({
+      from: r.profile.id,
+      to: r.chatConversation.profileTwoId,
+    }),
     photos: r.many.profilePhoto(),
+    sentChatMessages: r.many.chatMessage(),
     users: r.many.user({
       from: r.profile.id.through(r.profileUser.profileId),
       to: r.user.id.through(r.profileUser.userId),
+    }),
+  },
+  chatConversation: {
+    messages: r.many.chatMessage(),
+    profileOne: r.one.profile({
+      from: r.chatConversation.profileOneId,
+      to: r.profile.id,
+    }),
+    profileTwo: r.one.profile({
+      from: r.chatConversation.profileTwoId,
+      to: r.profile.id,
+    }),
+  },
+  chatMessage: {
+    conversation: r.one.chatConversation({
+      from: r.chatMessage.conversationId,
+      to: r.chatConversation.id,
+    }),
+    reactions: r.many.chatMessageReaction(),
+    replyToMessage: r.one.chatMessage({
+      from: r.chatMessage.replyToMessageId,
+      to: r.chatMessage.id,
+    }),
+    senderProfile: r.one.profile({
+      from: r.chatMessage.senderProfileId,
+      to: r.profile.id,
+    }),
+  },
+  chatMessageReaction: {
+    message: r.one.chatMessage({
+      from: r.chatMessageReaction.messageId,
+      to: r.chatMessage.id,
+    }),
+    profile: r.one.profile({
+      from: r.chatMessageReaction.profileId,
+      to: r.profile.id,
     }),
   },
   profilePhoto: {

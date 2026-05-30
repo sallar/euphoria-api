@@ -57,6 +57,8 @@ const ProfileUpdate = t.Partial(ProfileInsert);
 
 const ProfileReactionStatus = t.Object({
   reaction: profileReactionSchema,
+  matched: t.Optional(t.Boolean()),
+  conversationId: t.Optional(t.Nullable(t.String({ format: "uuid" }))),
 });
 
 const ProfileFeedItem = t.Object({

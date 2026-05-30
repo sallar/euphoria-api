@@ -1,0 +1,169 @@
+import Elysia, { t } from "elysia";
+
+import { chatMessageTypeSchema, profileTypeSchema } from "./enums";
+import { ref } from "./utils";
+
+const uuid = t.String({ format: "uuid" });
+const messageText = t.String({ minLength: 1, maxLength: 4000 });
+const reactionEmoji = t.String({ minLength: 1, maxLength: 64 });
+
+const ChatProfileSummary = t.Object({
+  id: uuid,
+  name: t.String(),
+  profileType: profileTypeSchema,
+});
+
+const ChatMessageAttachment = t.Object({
+  type: t.Literal("image"),
+  url: t.String(),
+  mimeType: t.Optional(t.String()),
+  width: t.Optional(t.Number({ minimum: 1 })),
+  height: t.Optional(t.Number({ minimum: 1 })),
+});
+
+const ChatMessageReactionCount = t.Object({
+  emoji: reactionEmoji,
+  count: t.Number({ minimum: 0 }),
+});
+
+const ChatConversationLastMessage = t.Object({
+  id: uuid,
+  senderProfileId: t.Nullable(uuid),
+  messageType: chatMessageTypeSchema,
+  content: t.Nullable(t.String()),
+  createdAt: t.Date(),
+});
+
+const ChatMessage = t.Object({
+  id: uuid,
+  conversationId: uuid,
+  senderProfileId: t.Nullable(uuid),
+  messageType: chatMessageTypeSchema,
+  content: t.Nullable(t.String()),
+  attachments: t.Array(ref("ChatMessageAttachment")),
+  replyToMessageId: t.Nullable(uuid),
+  editedAt: t.Nullable(t.Date()),
+  deletedAt: t.Nullable(t.Date()),
+  createdAt: t.Date(),
+  updatedAt: t.Date(),
+  reactionCounts: t.Array(ref("ChatMessageReactionCount")),
+  viewerReactions: t.Array(reactionEmoji),
+});
+
+const ChatConversation = t.Object({
+  id: uuid,
+  profileOneId: uuid,
+  profileTwoId: uuid,
+  matchedProfileId: uuid,
+  matchedProfile: ref("ChatProfileSummary"),
+  isMatched: t.Boolean(),
+  lastMessageAt: t.Nullable(t.Date()),
+  lastMessage: t.Nullable(ref("ChatConversationLastMessage")),
+  createdAt: t.Date(),
+  updatedAt: t.Date(),
+});
+
+const ChatConversationListResponse = t.Object({
+  data: t.Array(ref("ChatConversation")),
+  cursor: t.Nullable(t.String({ format: "date-time" })),
+});
+
+const ChatMessageListResponse = t.Object({
+  data: t.Array(ref("ChatMessage")),
+  cursor: t.Nullable(t.String({ format: "date-time" })),
+});
+
+const ChatMessageInsert = t.Object({
+  text: messageText,
+  replyToMessageId: t.Optional(t.Nullable(uuid)),
+});
+
+const ChatMessageReactionInput = t.Object({
+  emoji: reactionEmoji,
+});
+
+const ChatSocketMessage = t.Union([
+  t.Object({
+    type: t.Literal("ping"),
+  }),
+  t.Object({
+    type: t.Literal("send_message"),
+    text: messageText,
+    replyToMessageId: t.Optional(t.Nullable(uuid)),
+    clientMessageId: t.Optional(t.String({ minLength: 1, maxLength: 120 })),
+  }),
+  t.Object({
+    type: t.Literal("typing"),
+    isTyping: t.Boolean(),
+  }),
+  t.Object({
+    type: t.Literal("add_reaction"),
+    messageId: uuid,
+    emoji: reactionEmoji,
+  }),
+  t.Object({
+    type: t.Literal("remove_reaction"),
+    messageId: uuid,
+    emoji: reactionEmoji,
+  }),
+]);
+
+export type ChatConversation = typeof ChatConversation.static;
+export type ChatConversationLastMessage = typeof ChatConversationLastMessage.static;
+export type ChatMessage = typeof ChatMessage.static;
+export type ChatMessageAttachment = typeof ChatMessageAttachment.static;
+export type ChatMessageReactionCount = typeof ChatMessageReactionCount.static;
+export type ChatProfileSummary = typeof ChatProfileSummary.static;
+export type ChatSocketMessage = typeof ChatSocketMessage.static;
+
+export type ChatSocketEvent =
+  | {
+      type: "connected";
+      conversation: ChatConversation;
+    }
+  | {
+      type: "message";
+      message: ChatMessage;
+      clientMessageId?: string;
+    }
+  | {
+      type: "reaction";
+      messageId: string;
+      reactionCounts: ChatMessageReactionCount[];
+      profileId: string;
+      emoji: string;
+      reacted: boolean;
+    }
+  | {
+      type: "typing";
+      profileId: string;
+      isTyping: boolean;
+    }
+  | {
+      type: "presence";
+      profileId: string;
+      online: boolean;
+    }
+  | {
+      type: "error";
+      code: string;
+      message: string;
+      clientMessageId?: string;
+    }
+  | {
+      type: "pong";
+    };
+
+export const chatModel = new Elysia({ name: "chat-model" }).model({
+  ChatConversation,
+  ChatConversationLastMessage,
+  ChatConversationListResponse,
+  ChatMessage,
+  ChatMessageAttachment,
+  ChatMessageInsert,
+  ChatMessageListResponse,
+  ChatMessageReactionCount,
+  ChatMessageReactionInput,
+  ChatProfileSummary,
+  ChatSocketMessage,
+});

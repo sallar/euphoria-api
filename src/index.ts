@@ -3,6 +3,7 @@ import { openapi } from "@elysia/openapi";
 import { Elysia } from "elysia";
 
 import { OpenAPI } from "@/lib/auth";
+import { chatRoutes } from "@/routes/chat";
 import { feedRoutes } from "@/routes/feed";
 import { notificationRoutes } from "@/routes/notifications";
 import { profileRoutes } from "@/routes/profile";
@@ -20,6 +21,7 @@ export const app = new Elysia()
     }),
   )
   .use(auth)
+  .use(chatRoutes)
   .use(feedRoutes)
   .use(notificationRoutes)
   .use(profileRoutes)

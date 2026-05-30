@@ -3,11 +3,12 @@ import Elysia, { t } from "elysia";
 
 import { profile, profileUser } from "@/db/profile-schema";
 import { db } from "@/lib/db";
-import { findActiveProfile, findOwnedProfile, setProfileReaction } from "@/lib/profile-queries";
+import { findActiveProfile, findOwnedProfile } from "@/lib/profile-queries";
 import { commonModel } from "@/models/common";
 import { Profile, profileModel, profileSelectColumns } from "@/models/profile";
 import { ref } from "@/models/utils";
 import { auth } from "@/plugins/auth";
+import { setProfileReactionAndSyncConversation } from "@/services/chat-service";
 
 export const profileRoutes = new Elysia({ prefix: "/api/profile", tags: ["Profile"] })
   .use(auth)
@@ -133,8 +134,13 @@ export const profileRoutes = new Elysia({ prefix: "/api/profile", tags: ["Profil
       const [targetProfile] = await findActiveProfile(params.targetProfileId);
       if (!targetProfile) return status(404, { message: "Target profile not found" });
 
-      await setProfileReaction(params.id, params.targetProfileId, "like");
-      return status(200, { reaction: "like" });
+      const result = await setProfileReactionAndSyncConversation({
+        profileId: params.id,
+        targetProfileId: params.targetProfileId,
+        reaction: "like",
+      });
+
+      return status(200, result);
     },
     {
       auth: true,
@@ -161,8 +167,13 @@ export const profileRoutes = new Elysia({ prefix: "/api/profile", tags: ["Profil
       const [targetProfile] = await findActiveProfile(params.targetProfileId);
       if (!targetProfile) return status(404, { message: "Target profile not found" });
 
-      await setProfileReaction(params.id, params.targetProfileId, "unlike");
-      return status(200, { reaction: "unlike" });
+      const result = await setProfileReactionAndSyncConversation({
+        profileId: params.id,
+        targetProfileId: params.targetProfileId,
+        reaction: "unlike",
+      });
+
+      return status(200, result);
     },
     {
       auth: true,

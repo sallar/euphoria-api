@@ -6,6 +6,7 @@ export default defineConfig({
   schema: [
     "./src/db/auth-schema.ts",
     "./src/db/profile-schema.ts",
+    "./src/db/chat-schema.ts",
     "./src/db/notification-schema.ts",
   ],
   dialect: "postgresql",
