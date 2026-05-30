@@ -495,7 +495,7 @@ const notifyAbsentRecipientUsers = async ({
   senderProfileId: string;
   senderUserId: string;
 }) => {
-  const activeUserIds = chatSockets.getActiveUserIdsForProfile(recipientProfileId);
+  const activeUserIds = chatSockets.getActiveUserIdsForConversationSubscribers(conversation.id);
   const [senderProfile] = await db
     .select({
       name: profile.name,

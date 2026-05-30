@@ -92,6 +92,19 @@ class ChatSocketHub {
     return new Set(Array.from(sockets.values()).map(({ userId }) => userId));
   }
 
+  getActiveUserIdsForConversationSubscribers(conversationId: string) {
+    const socketIds = this.conversationSubscriptions.get(conversationId);
+    if (!socketIds) return new Set<string>();
+
+    const userIds = new Set<string>();
+    for (const socketId of socketIds) {
+      const socket = this.socketsById.get(socketId);
+      if (socket) userIds.add(socket.userId);
+    }
+
+    return userIds;
+  }
+
   sendToProfile(
     profileId: string,
     event: ChatSocketEvent,
