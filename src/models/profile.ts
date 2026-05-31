@@ -29,16 +29,16 @@ const writableProfileFields = {
   orientationInterests: t.Array(profileOrientationSchema),
   relationshipTypes: t.Array(profileRelationshipTypeSchema),
   hidden: t.Optional(t.Boolean()),
+  location: t.Object({
+    x: t.Number({ minimum: -180, maximum: 180 }), // longitude
+    y: t.Number({ minimum: -90, maximum: 90 }), // latitude
+  }),
 };
 
 const wirteOnlyFields = {
   lastSeenAt: t.Optional(t.Date()),
   dateOfBirth: t.String({ format: "date" }),
   country: t.String({ minLength: 2, maxLength: 2 }),
-  location: t.Object({
-    x: t.Number({ minimum: -180, maximum: 180 }), // longitude
-    y: t.Number({ minimum: -90, maximum: 90 }), // latitude
-  }),
 };
 
 const Profile = t.Object({
@@ -62,7 +62,7 @@ const ProfileReactionStatus = t.Object({
 });
 
 const ProfileFeedItem = t.Object({
-  ...Profile.properties,
+  ...t.Omit(Profile, ["location"]).properties,
   age: t.Number({ minimum: 0 }),
   photos: t.Array(ProfilePhoto),
   distance: t.Number({ minimum: 0 }),

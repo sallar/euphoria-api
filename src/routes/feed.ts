@@ -56,7 +56,7 @@ export const feedRoutes = new Elysia({ prefix: "/api/profile", tags: ["Feed"] })
       if (!profileAccess) return status(404, { message: "Profile not found" });
 
       const cursorMeters = query.cursor === undefined ? null : query.cursor * 1000;
-      const pageSize = Math.trunc(query.pageSize ?? defaultPageSize);
+      const pageSize = Math.trunc(query.limit ?? defaultPageSize);
       const queryLimit = pageSize + 1;
       const profileType = query.profileType ?? null;
       const radiusMeters = query.radius * 1000;
@@ -166,7 +166,7 @@ export const feedRoutes = new Elysia({ prefix: "/api/profile", tags: ["Feed"] })
         minAge: t.Numeric({ minimum: 18, maximum: 120, multipleOf: 1 }),
         maxAge: t.Numeric({ minimum: 18, maximum: 120, multipleOf: 1 }),
         cursor: t.Optional(t.Numeric({ minimum: 0 })),
-        pageSize: t.Optional(t.Numeric({ minimum: 1, maximum: maxPageSize, multipleOf: 1 })),
+        limit: t.Optional(t.Numeric({ minimum: 1, maximum: maxPageSize, multipleOf: 1 })),
         profileType: t.Optional(profileTypeSchema),
       }),
       response: {
