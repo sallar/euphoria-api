@@ -18,7 +18,7 @@ export const betterAuth = betterAuthFactory({
   },
   plugins: [openAPI(), expo(), bearer()],
   trustedOrigins: [
-    "euphoria://",
+    "pluriel://",
     "exp://",
     "exp://**",
     "exp://192.168.*.*:*/**",
