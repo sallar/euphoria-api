@@ -537,6 +537,62 @@ const notifyAbsentRecipientUsers = async ({
   }
 };
 
+const notifyProfileMatchUsers = async ({
+  conversationId,
+  profileId,
+  targetProfileId,
+}: {
+  conversationId: string;
+  profileId: string;
+  targetProfileId: string;
+}) => {
+  const participants = await db
+    .select({
+      profileId: profile.id,
+      profileName: profile.name,
+      userId: user.id,
+    })
+    .from(profile)
+    .innerJoin(profileUser, eq(profile.id, profileUser.profileId))
+    .innerJoin(user, eq(profileUser.userId, user.id))
+    .where(inArray(profile.id, [profileId, targetProfileId]));
+
+  const profileNames = new Map(
+    participants.map((participant) => [participant.profileId, participant.profileName]),
+  );
+  const userIdsByProfile = new Map<string, Set<string>>();
+
+  for (const participant of participants) {
+    const userIds = userIdsByProfile.get(participant.profileId) ?? new Set<string>();
+    userIds.add(participant.userId);
+    userIdsByProfile.set(participant.profileId, userIds);
+  }
+
+  for (const [recipientProfileId, matchedProfileId] of [
+    [profileId, targetProfileId],
+    [targetProfileId, profileId],
+  ] as const) {
+    const matchedProfileName = profileNames.get(matchedProfileId) ?? "someone new";
+    const recipientUserIds = userIdsByProfile.get(recipientProfileId) ?? new Set<string>();
+
+    for (const recipientUserId of recipientUserIds) {
+      await createNotification({
+        recipientUserId,
+        type: "profile_match",
+        title: "It's a match",
+        body: `You and ${matchedProfileName} liked each other.`,
+        actorProfileId: matchedProfileId,
+        relatedProfileId: recipientProfileId,
+        data: {
+          conversationId,
+          profileId: recipientProfileId,
+          matchedProfileId,
+        },
+      });
+    }
+  }
+};
+
 export const syncConversationsForProfileMatches = async (profileId: string) => {
   await db.execute(sql`
     insert into ${chatConversation} (
@@ -572,6 +628,20 @@ export const setProfileReactionAndSyncConversation = async ({
   const result = await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${pairLockKey}))`);
 
+    const [existingReaction] = await tx
+      .select({
+        reaction: profileReaction.reaction,
+      })
+      .from(profileReaction)
+      .where(
+        and(
+          eq(profileReaction.profileId, profileId),
+          eq(profileReaction.targetProfileId, targetProfileId),
+        ),
+      )
+      .limit(1);
+    const alreadyLiked = existingReaction?.reaction === "like";
+
     await tx
       .insert(profileReaction)
       .values({
@@ -589,6 +659,7 @@ export const setProfileReactionAndSyncConversation = async ({
 
     if (reaction !== "like") {
       return {
+        shouldNotifyMatch: false,
         reaction,
         matched: false,
         conversationId: null,
@@ -617,6 +688,7 @@ export const setProfileReactionAndSyncConversation = async ({
 
     if (Number(matchCount?.count ?? 0) !== 2) {
       return {
+        shouldNotifyMatch: false,
         reaction,
         matched: false,
         conversationId: null,
@@ -635,6 +707,7 @@ export const setProfileReactionAndSyncConversation = async ({
 
     if (createdConversation) {
       return {
+        shouldNotifyMatch: !alreadyLiked,
         reaction,
         matched: true,
         conversationId: createdConversation.id,
@@ -655,6 +728,7 @@ export const setProfileReactionAndSyncConversation = async ({
       .limit(1);
 
     return {
+      shouldNotifyMatch: !alreadyLiked,
       reaction,
       matched: true,
       conversationId: existingConversation?.id ?? null,
@@ -663,9 +737,25 @@ export const setProfileReactionAndSyncConversation = async ({
 
   if (result.matched && result.conversationId) {
     await broadcastConversationUpsert(result.conversationId);
+
+    if (result.shouldNotifyMatch) {
+      try {
+        await notifyProfileMatchUsers({
+          conversationId: result.conversationId,
+          profileId,
+          targetProfileId,
+        });
+      } catch (error) {
+        console.error("Failed to create profile match notifications:", error);
+      }
+    }
   }
 
-  return result;
+  return {
+    reaction: result.reaction,
+    matched: result.matched,
+    conversationId: result.conversationId,
+  };
 };
 
 export const listChatConversations = async ({
