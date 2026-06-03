@@ -173,11 +173,7 @@ const toExpoPushMessage = (
   title: createdNotification.title,
   body: createdNotification.body,
   sound: "default",
-  data: {
-    ...createdNotification.data,
-    notificationId: createdNotification.id,
-    notificationType: createdNotification.type,
-  },
+  data: createdNotification,
 });
 
 const sendExpoPushNotifications = async (
