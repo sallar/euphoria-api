@@ -1,6 +1,8 @@
 import type { SQL } from "drizzle-orm";
+import type { ExpoPushMessage, ExpoPushTicket } from "expo-server-sdk";
 
 import { and, desc, eq, isNull, lt, sql } from "drizzle-orm";
+import { Expo } from "expo-server-sdk";
 
 import type { Notification, PushToken } from "@/models/notification";
 
@@ -21,6 +23,12 @@ export type NotificationChannel = (typeof notificationChannelValues)[number];
 type NotificationRow = typeof notification.$inferSelect;
 type PushTokenRow = typeof userPushToken.$inferSelect;
 
+type PushDeliveryTarget = {
+  deliveryId: string;
+  pushTokenId: string;
+  token: string;
+};
+
 type CreateNotificationInput = {
   recipientUserId: string;
   type: NotificationType;
@@ -35,6 +43,7 @@ type CreateNotificationInput = {
 const defaultNotificationChannels: NotificationChannel[] = ["in_app", "push"];
 const defaultNotificationLimit = 20;
 const maxNotificationLimit = 100;
+let expoClient: Expo | undefined;
 
 const notificationFields = {
   id: notification.id,
@@ -71,6 +80,150 @@ const toNotification = (
 });
 
 const toPushToken = (row: Pick<PushTokenRow, keyof typeof pushTokenFields>): PushToken => row;
+
+const getExpoClient = () => {
+  const accessToken = process.env.EXPO_ACCESS_TOKEN?.trim();
+  expoClient ??= new Expo(accessToken ? { accessToken } : undefined);
+  return expoClient;
+};
+
+const formatPushError = (error: unknown) => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return "Unknown Expo push notification error";
+};
+
+const markPushDeliveryDelivered = async ({ deliveryId }: PushDeliveryTarget) => {
+  const now = new Date();
+
+  await db
+    .update(notificationDelivery)
+    .set({
+      status: "delivered",
+      attemptCount: sql`${notificationDelivery.attemptCount} + 1`,
+      lastAttemptAt: now,
+      deliveredAt: now,
+      failedAt: null,
+      error: null,
+      updatedAt: now,
+    })
+    .where(eq(notificationDelivery.id, deliveryId));
+};
+
+const markPushDeliveryFailed = async (
+  { deliveryId, pushTokenId }: PushDeliveryTarget,
+  error: string,
+  disablePushToken: boolean,
+) => {
+  const now = new Date();
+
+  await db
+    .update(notificationDelivery)
+    .set({
+      status: "failed",
+      attemptCount: sql`${notificationDelivery.attemptCount} + 1`,
+      lastAttemptAt: now,
+      deliveredAt: null,
+      failedAt: now,
+      error,
+      updatedAt: now,
+    })
+    .where(eq(notificationDelivery.id, deliveryId));
+
+  if (disablePushToken) {
+    await db
+      .update(userPushToken)
+      .set({
+        enabled: false,
+        disabledAt: now,
+        updatedAt: now,
+      })
+      .where(eq(userPushToken.id, pushTokenId));
+  }
+};
+
+const applyExpoPushTicket = async (
+  delivery: PushDeliveryTarget,
+  ticket: ExpoPushTicket | undefined,
+) => {
+  if (!ticket)
+    return markPushDeliveryFailed(
+      delivery,
+      "Expo did not return a push ticket for this notification",
+      false,
+    );
+
+  if (ticket.status === "ok") return markPushDeliveryDelivered(delivery);
+
+  const errorCode = ticket.details?.error;
+  const error = [errorCode, ticket.message].filter(Boolean).join(": ");
+
+  return markPushDeliveryFailed(
+    delivery,
+    error || "Expo returned an error for this push notification",
+    errorCode === "DeviceNotRegistered",
+  );
+};
+
+const toExpoPushMessage = (
+  createdNotification: Notification,
+  delivery: PushDeliveryTarget,
+): ExpoPushMessage => ({
+  to: delivery.token,
+  title: createdNotification.title,
+  body: createdNotification.body,
+  sound: "default",
+  data: {
+    ...createdNotification.data,
+    notificationId: createdNotification.id,
+    notificationType: createdNotification.type,
+  },
+});
+
+const sendExpoPushNotifications = async (
+  createdNotification: Notification,
+  deliveries: PushDeliveryTarget[],
+) => {
+  if (!deliveries.length) return;
+
+  const expo = getExpoClient();
+  const deliverableMessages: { delivery: PushDeliveryTarget; message: ExpoPushMessage }[] = [];
+
+  for (const delivery of deliveries) {
+    if (!Expo.isExpoPushToken(delivery.token)) {
+      await markPushDeliveryFailed(delivery, "Invalid Expo push token format", true);
+      continue;
+    }
+
+    deliverableMessages.push({
+      delivery,
+      message: toExpoPushMessage(createdNotification, delivery),
+    });
+  }
+
+  let chunkStart = 0;
+  const messages = deliverableMessages.map(({ message }) => message);
+  for (const chunk of expo.chunkPushNotifications(messages)) {
+    const chunkDeliveries = deliverableMessages
+      .slice(chunkStart, chunkStart + chunk.length)
+      .map(({ delivery }) => delivery);
+    chunkStart += chunk.length;
+
+    try {
+      const tickets = await expo.sendPushNotificationsAsync(chunk);
+      await Promise.all(
+        chunkDeliveries.map((delivery, index) => applyExpoPushTicket(delivery, tickets[index])),
+      );
+    } catch (error) {
+      console.error("Failed to send Expo push notification chunk:", error);
+      const errorMessage = formatPushError(error);
+
+      await Promise.all(
+        chunkDeliveries.map((delivery) => markPushDeliveryFailed(delivery, errorMessage, false)),
+      );
+    }
+  }
+};
 
 export const normalizeNotificationLimit = (limit: number | undefined) =>
   Math.min(Math.max(Math.trunc(limit ?? defaultNotificationLimit), 1), maxNotificationLimit);
@@ -199,66 +352,93 @@ export const archiveNotification = async (userId: string, notificationId: string
 export const createNotification = async (input: CreateNotificationInput) => {
   const channels = input.channels?.length ? input.channels : defaultNotificationChannels;
 
-  const { createdNotification, inAppDeliveryId } = await db.transaction(async (tx) => {
-    const [created] = await tx
-      .insert(notification)
-      .values({
-        recipientUserId: input.recipientUserId,
-        type: input.type,
-        title: input.title,
-        body: input.body,
-        data: input.data ?? {},
-        actorProfileId: input.actorProfileId ?? null,
-        relatedProfileId: input.relatedProfileId ?? null,
-      })
-      .returning(notificationFields);
-
-    let liveDeliveryId: string | undefined;
-    if (channels.includes("in_app")) {
-      const [delivery] = await tx
-        .insert(notificationDelivery)
+  const { createdNotification, inAppDeliveryId, pushDeliveries } = await db.transaction(
+    async (tx) => {
+      const [created] = await tx
+        .insert(notification)
         .values({
-          notificationId: created.id,
           recipientUserId: input.recipientUserId,
-          channel: "in_app",
-          status: "pending",
+          type: input.type,
+          title: input.title,
+          body: input.body,
+          data: input.data ?? {},
+          actorProfileId: input.actorProfileId ?? null,
+          relatedProfileId: input.relatedProfileId ?? null,
         })
-        .returning({ id: notificationDelivery.id });
+        .returning(notificationFields);
 
-      liveDeliveryId = delivery.id;
-    }
-
-    if (channels.includes("push")) {
-      const tokens = await tx
-        .select({ id: userPushToken.id })
-        .from(userPushToken)
-        .where(
-          and(
-            eq(userPushToken.userId, input.recipientUserId),
-            eq(userPushToken.provider, "expo"),
-            eq(userPushToken.enabled, true),
-          ),
-        );
-
-      if (tokens.length) {
-        await tx.insert(notificationDelivery).values(
-          tokens.map(({ id }) => ({
+      let liveDeliveryId: string | undefined;
+      if (channels.includes("in_app")) {
+        const [delivery] = await tx
+          .insert(notificationDelivery)
+          .values({
             notificationId: created.id,
             recipientUserId: input.recipientUserId,
-            channel: "push" as const,
-            status: "pending" as const,
-            provider: "expo" as const,
-            pushTokenId: id,
-          })),
-        );
-      }
-    }
+            channel: "in_app",
+            status: "pending",
+          })
+          .returning({ id: notificationDelivery.id });
 
-    return {
-      createdNotification: toNotification(created),
-      inAppDeliveryId: liveDeliveryId,
-    };
-  });
+        liveDeliveryId = delivery.id;
+      }
+
+      const pushDeliveries: PushDeliveryTarget[] = [];
+      if (channels.includes("push")) {
+        const tokens = await tx
+          .select({
+            id: userPushToken.id,
+            token: userPushToken.token,
+          })
+          .from(userPushToken)
+          .where(
+            and(
+              eq(userPushToken.userId, input.recipientUserId),
+              eq(userPushToken.provider, "expo"),
+              eq(userPushToken.enabled, true),
+            ),
+          );
+
+        if (tokens.length) {
+          const deliveries = await tx
+            .insert(notificationDelivery)
+            .values(
+              tokens.map(({ id }) => ({
+                notificationId: created.id,
+                recipientUserId: input.recipientUserId,
+                channel: "push" as const,
+                status: "pending" as const,
+                provider: "expo" as const,
+                pushTokenId: id,
+              })),
+            )
+            .returning({
+              deliveryId: notificationDelivery.id,
+              pushTokenId: notificationDelivery.pushTokenId,
+            });
+
+          const tokenById = new Map(tokens.map(({ id, token }) => [id, token]));
+          for (const delivery of deliveries) {
+            if (!delivery.pushTokenId) continue;
+
+            const token = tokenById.get(delivery.pushTokenId);
+            if (!token) continue;
+
+            pushDeliveries.push({
+              deliveryId: delivery.deliveryId,
+              pushTokenId: delivery.pushTokenId,
+              token,
+            });
+          }
+        }
+      }
+
+      return {
+        createdNotification: toNotification(created),
+        inAppDeliveryId: liveDeliveryId,
+        pushDeliveries,
+      };
+    },
+  );
 
   if (channels.includes("in_app")) {
     const sentConnections = notificationSockets.sendToUser(input.recipientUserId, {
@@ -278,6 +458,10 @@ export const createNotification = async (input: CreateNotificationInput) => {
         })
         .where(eq(notificationDelivery.id, inAppDeliveryId));
     }
+  }
+
+  if (channels.includes("push")) {
+    await sendExpoPushNotifications(createdNotification, pushDeliveries);
   }
 
   return createdNotification;

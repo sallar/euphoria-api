@@ -21,6 +21,7 @@
     "dotenv": "^17.4.2",
     "drizzle-orm": "^1.0.0-beta.22",
     "elysia": "latest",
+    "expo-server-sdk": "^6.1.0",
     "pg": "^8.20.0"
   },
   "devDependencies": {
