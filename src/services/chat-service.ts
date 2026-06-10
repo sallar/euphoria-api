@@ -4,13 +4,19 @@ import { and, asc, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
 
 import type {
   ChatConversation,
+  ChatConversationReadState,
   ChatMessage,
   ChatMessageReactionCount,
   ChatProfileSummary,
 } from "@/models/chat";
 
 import { user } from "@/db/auth-schema";
-import { chatConversation, chatMessage, chatMessageReaction } from "@/db/chat-schema";
+import {
+  chatConversation,
+  chatConversationReadState,
+  chatMessage,
+  chatMessageReaction,
+} from "@/db/chat-schema";
 import {
   profile,
   profileMatch,
@@ -63,6 +69,11 @@ type RawConversationRow = {
   lastMessageType: ChatMessage["messageType"] | null;
   lastMessageContent: string | null;
   lastMessageCreatedAt: Date | null;
+  readStateLastReadMessageId: string | null;
+  readStateLastReadAt: Date | null;
+  unreadCount: number;
+  firstUnreadMessageId: string | null;
+  firstUnreadMessageCreatedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   sortAt: Date;
@@ -134,6 +145,13 @@ const toConversation = (row: RawConversationRow): ChatConversation => ({
           createdAt: row.lastMessageCreatedAt,
         }
       : null,
+  readState: {
+    lastReadMessageId: row.readStateLastReadMessageId,
+    lastReadAt: row.readStateLastReadAt,
+    unreadCount: Number(row.unreadCount ?? 0),
+    firstUnreadMessageId: row.firstUnreadMessageId,
+    firstUnreadMessageCreatedAt: row.firstUnreadMessageCreatedAt,
+  },
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
 });
@@ -148,6 +166,44 @@ const toMessage = (
   reactionCounts,
   viewerReactions,
 });
+
+type ReadPosition = {
+  id: string | null;
+  createdAt: Date;
+};
+
+const compareReadPositions = (a: ReadPosition, b: ReadPosition) => {
+  const timeDelta = a.createdAt.getTime() - b.createdAt.getTime();
+  if (timeDelta !== 0) return timeDelta;
+  if (a.id && b.id) return a.id.localeCompare(b.id);
+  if (a.id && !b.id) return 1;
+  if (!a.id && b.id) return -1;
+  return 0;
+};
+
+const getExistingReadPosition = (
+  row:
+    | {
+        lastReadMessageId: string | null;
+        lastReadAt: Date;
+        readMessageCreatedAt: Date | null;
+      }
+    | undefined,
+) => {
+  if (!row) return null;
+
+  if (row.lastReadMessageId && row.readMessageCreatedAt) {
+    return {
+      id: row.lastReadMessageId,
+      createdAt: row.readMessageCreatedAt,
+    };
+  }
+
+  return {
+    id: null,
+    createdAt: row.lastReadAt,
+  };
+};
 
 const loadReactionSummaries = async (messageIds: string[], viewerProfileId: string) => {
   const reactionCountsByMessageId = new Map<string, ChatMessageReactionCount[]>();
@@ -362,12 +418,22 @@ const loadChatConversationForProfile = async ({
       last_message.message_type as "lastMessageType",
       last_message.content as "lastMessageContent",
       last_message.created_at as "lastMessageCreatedAt",
+      read_state.last_read_message_id as "readStateLastReadMessageId",
+      read_state.last_read_at as "readStateLastReadAt",
+      coalesce(unread_state."unreadCount", 0) as "unreadCount",
+      unread_state."firstUnreadMessageId",
+      unread_state."firstUnreadMessageCreatedAt",
       conversation_row."createdAt",
       conversation_row."updatedAt",
       conversation_row."sortAt"
     from conversation_row
     inner join ${profile} matched_profile
       on matched_profile.id = conversation_row."matchedProfileId"
+    left join ${chatConversationReadState} read_state
+      on read_state.conversation_id = conversation_row.id
+      and read_state.profile_id = ${profileId}
+    left join ${chatMessage} read_message
+      on read_message.id = read_state.last_read_message_id
     left join lateral (
       select
         message.id,
@@ -380,6 +446,36 @@ const loadChatConversationForProfile = async ({
       order by message.created_at desc, message.id desc
       limit 1
     ) last_message on true
+    left join lateral (
+      select
+        count(*)::int as "unreadCount",
+        (array_agg(unread_message.id order by unread_message.created_at asc, unread_message.id asc))[1] as "firstUnreadMessageId",
+        (array_agg(unread_message.created_at order by unread_message.created_at asc, unread_message.id asc))[1] as "firstUnreadMessageCreatedAt"
+      from ${chatMessage} unread_message
+      where unread_message.conversation_id = conversation_row.id
+        and unread_message.sender_profile_id is distinct from ${profileId}
+        and (
+          read_state.conversation_id is null
+          or (
+            read_state.last_read_message_id is not null
+            and read_message.id is not null
+            and (
+              unread_message.created_at > read_message.created_at
+              or (
+                unread_message.created_at = read_message.created_at
+                and unread_message.id > read_message.id
+              )
+            )
+          )
+          or (
+            (
+              read_state.last_read_message_id is null
+              or read_message.id is null
+            )
+            and unread_message.created_at > read_state.last_read_at
+          )
+        )
+    ) unread_state on true
   `)) as RawConversationRow[];
 
   const row = rows[0];
@@ -826,12 +922,22 @@ export const listChatConversations = async ({
       last_message.message_type as "lastMessageType",
       last_message.content as "lastMessageContent",
       last_message.created_at as "lastMessageCreatedAt",
+      read_state.last_read_message_id as "readStateLastReadMessageId",
+      read_state.last_read_at as "readStateLastReadAt",
+      coalesce(unread_state."unreadCount", 0) as "unreadCount",
+      unread_state."firstUnreadMessageId",
+      unread_state."firstUnreadMessageCreatedAt",
       conversation_rows."createdAt",
       conversation_rows."updatedAt",
       conversation_rows."sortAt"
     from conversation_rows
     inner join ${profile} matched_profile
       on matched_profile.id = conversation_rows."matchedProfileId"
+    left join ${chatConversationReadState} read_state
+      on read_state.conversation_id = conversation_rows.id
+      and read_state.profile_id = ${profileId}
+    left join ${chatMessage} read_message
+      on read_message.id = read_state.last_read_message_id
     left join lateral (
       select
         message.id,
@@ -844,6 +950,36 @@ export const listChatConversations = async ({
       order by message.created_at desc, message.id desc
       limit 1
     ) last_message on true
+    left join lateral (
+      select
+        count(*)::int as "unreadCount",
+        (array_agg(unread_message.id order by unread_message.created_at asc, unread_message.id asc))[1] as "firstUnreadMessageId",
+        (array_agg(unread_message.created_at order by unread_message.created_at asc, unread_message.id asc))[1] as "firstUnreadMessageCreatedAt"
+      from ${chatMessage} unread_message
+      where unread_message.conversation_id = conversation_rows.id
+        and unread_message.sender_profile_id is distinct from ${profileId}
+        and (
+          read_state.conversation_id is null
+          or (
+            read_state.last_read_message_id is not null
+            and read_message.id is not null
+            and (
+              unread_message.created_at > read_message.created_at
+              or (
+                unread_message.created_at = read_message.created_at
+                and unread_message.id > read_message.id
+              )
+            )
+          )
+          or (
+            (
+              read_state.last_read_message_id is null
+              or read_message.id is null
+            )
+            and unread_message.created_at > read_state.last_read_at
+          )
+        )
+    ) unread_state on true
     where ${cursorDate}::timestamptz is null
       or conversation_rows."sortAt" < ${cursorDate}::timestamptz
     order by conversation_rows."sortAt" desc, conversation_rows.id desc
@@ -936,6 +1072,133 @@ export const listChatMessages = async ({
   };
 };
 
+export const markChatConversationRead = async ({
+  conversationId,
+  messageId,
+  profileId,
+  userId,
+}: {
+  conversationId: string;
+  messageId?: string | null;
+  profileId: string;
+  userId: string;
+}): Promise<ChatServiceResult<ChatConversation>> => {
+  const access = await getConversationAccess({ conversationId, profileId, userId });
+  if (!access.ok) return access;
+
+  const now = new Date();
+  const updateResult = await db.transaction(async (tx) => {
+    const [targetMessage] = messageId
+      ? await tx
+          .select({
+            id: chatMessage.id,
+            createdAt: chatMessage.createdAt,
+          })
+          .from(chatMessage)
+          .where(and(eq(chatMessage.id, messageId), eq(chatMessage.conversationId, conversationId)))
+          .limit(1)
+      : await tx
+          .select({
+            id: chatMessage.id,
+            createdAt: chatMessage.createdAt,
+          })
+          .from(chatMessage)
+          .where(eq(chatMessage.conversationId, conversationId))
+          .orderBy(desc(chatMessage.createdAt), desc(chatMessage.id))
+          .limit(1);
+
+    if (messageId && !targetMessage) {
+      return {
+        ok: false as const,
+      };
+    }
+
+    if (!targetMessage) {
+      return {
+        ok: true as const,
+      };
+    }
+
+    const [existingState] = await tx
+      .select({
+        lastReadMessageId: chatConversationReadState.lastReadMessageId,
+        lastReadAt: chatConversationReadState.lastReadAt,
+        readMessageCreatedAt: chatMessage.createdAt,
+      })
+      .from(chatConversationReadState)
+      .leftJoin(chatMessage, eq(chatConversationReadState.lastReadMessageId, chatMessage.id))
+      .where(
+        and(
+          eq(chatConversationReadState.conversationId, conversationId),
+          eq(chatConversationReadState.profileId, profileId),
+        ),
+      )
+      .limit(1);
+
+    const targetPosition = {
+      id: targetMessage.id,
+      createdAt: targetMessage.createdAt,
+    };
+    const existingPosition = getExistingReadPosition(existingState);
+
+    if (!existingPosition || compareReadPositions(targetPosition, existingPosition) > 0) {
+      await tx
+        .insert(chatConversationReadState)
+        .values({
+          conversationId,
+          profileId,
+          lastReadMessageId: targetMessage.id,
+          lastReadAt: now,
+        })
+        .onConflictDoUpdate({
+          target: [chatConversationReadState.conversationId, chatConversationReadState.profileId],
+          set: {
+            lastReadMessageId: targetMessage.id,
+            lastReadAt: now,
+            updatedAt: now,
+          },
+        });
+    }
+
+    return {
+      ok: true as const,
+    };
+  });
+
+  if (!updateResult.ok) {
+    return {
+      ok: false,
+      code: "message_not_found",
+      message: "Read target message not found",
+    };
+  }
+
+  const conversation = await loadChatConversationForProfile({ conversationId, profileId });
+  if (!conversation) {
+    return {
+      ok: false,
+      code: "conversation_not_found",
+      message: "Conversation not found",
+    };
+  }
+
+  chatSockets.sendToProfile(profileId, {
+    type: "conversation_upsert",
+    conversation,
+  });
+  chatSockets.sendToConversationSubscribers(conversationId, {
+    type: "conversation_read",
+    conversationId,
+    profileId,
+    readState: conversation.readState as ChatConversationReadState,
+  });
+
+  return {
+    ok: true,
+    data: conversation,
+  };
+};
+
 export const sendTextMessage = async ({
   clientMessageId,
   conversationId,
@@ -1005,6 +1268,24 @@ export const sendTextMessage = async ({
         updatedAt: new Date(),
       })
       .where(eq(chatConversation.id, conversationId));
+
+    const readAt = new Date();
+    await tx
+      .insert(chatConversationReadState)
+      .values({
+        conversationId,
+        profileId,
+        lastReadMessageId: created.id,
+        lastReadAt: readAt,
+      })
+      .onConflictDoUpdate({
+        target: [chatConversationReadState.conversationId, chatConversationReadState.profileId],
+        set: {
+          lastReadMessageId: created.id,
+          lastReadAt: readAt,
+          updatedAt: readAt,
+        },
+      });
 
     return created;
   });

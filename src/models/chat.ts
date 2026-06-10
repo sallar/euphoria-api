@@ -34,6 +34,14 @@ const ChatConversationLastMessage = t.Object({
   createdAt: t.Date(),
 });
 
+const ChatConversationReadState = t.Object({
+  lastReadMessageId: t.Nullable(uuid),
+  lastReadAt: t.Nullable(t.Date()),
+  unreadCount: t.Number({ minimum: 0 }),
+  firstUnreadMessageId: t.Nullable(uuid),
+  firstUnreadMessageCreatedAt: t.Nullable(t.Date()),
+});
+
 const ChatMessage = t.Object({
   id: uuid,
   conversationId: uuid,
@@ -59,6 +67,7 @@ const ChatConversation = t.Object({
   isMatched: t.Boolean(),
   lastMessageAt: t.Nullable(t.Date()),
   lastMessage: t.Nullable(ref("ChatConversationLastMessage")),
+  readState: ref("ChatConversationReadState"),
   createdAt: t.Date(),
   updatedAt: t.Date(),
 });
@@ -80,6 +89,10 @@ const ChatMessageInsert = t.Object({
 
 const ChatMessageReactionInput = t.Object({
   emoji: reactionEmoji,
+});
+
+const ChatConversationReadUpdate = t.Object({
+  messageId: t.Optional(t.Nullable(uuid)),
 });
 
 const ChatSocketMessage = t.Union([
@@ -107,6 +120,11 @@ const ChatSocketMessage = t.Union([
     isTyping: t.Boolean(),
   }),
   t.Object({
+    type: t.Literal("mark_read"),
+    conversationId: uuid,
+    messageId: t.Optional(t.Nullable(uuid)),
+  }),
+  t.Object({
     type: t.Literal("add_reaction"),
     conversationId: uuid,
     messageId: uuid,
@@ -122,6 +140,7 @@ const ChatSocketMessage = t.Union([
 
 export type ChatConversation = typeof ChatConversation.static;
 export type ChatConversationLastMessage = typeof ChatConversationLastMessage.static;
+export type ChatConversationReadState = typeof ChatConversationReadState.static;
 export type ChatMessage = typeof ChatMessage.static;
 export type ChatMessageAttachment = typeof ChatMessageAttachment.static;
 export type ChatMessageReactionCount = typeof ChatMessageReactionCount.static;
@@ -144,6 +163,12 @@ export type ChatSocketEvent =
   | {
       type: "conversation_upsert";
       conversation: ChatConversation;
+    }
+  | {
+      type: "conversation_read";
+      conversationId: string;
+      profileId: string;
+      readState: ChatConversationReadState;
     }
   | {
       type: "message";
@@ -192,6 +217,8 @@ export type ChatSocketEvent =
 export const chatModel = new Elysia({ name: "chat-model" }).model({
   ChatConversation,
   ChatConversationLastMessage,
+  ChatConversationReadState,
+  ChatConversationReadUpdate,
   ChatConversationListResponse,
   ChatMessage,
   ChatMessageAttachment,

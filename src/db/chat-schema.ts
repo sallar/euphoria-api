@@ -132,3 +132,29 @@ export const chatMessageReaction = pgTable(
     index("chat_message_reaction_emoji_idx").on(table.emoji),
   ],
 );
+
+export const chatConversationReadState = pgTable(
+  "chat_conversation_read_state",
+  {
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => chatConversation.id, { onDelete: "cascade" }),
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profile.id, { onDelete: "cascade" }),
+    lastReadMessageId: uuid("last_read_message_id").references(() => chatMessage.id, {
+      onDelete: "set null",
+    }),
+    lastReadAt: timestamp("last_read_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.conversationId, table.profileId] }),
+    index("chat_conversation_read_state_profile_idx").on(table.profileId, table.updatedAt.desc()),
+    index("chat_conversation_read_state_last_read_message_idx").on(table.lastReadMessageId),
+  ],
+);

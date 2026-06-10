@@ -40,6 +40,7 @@ export const relations = defineRelations(schema, (r) => ({
   },
   profile: {
     chatMessageReactions: r.many.chatMessageReaction(),
+    chatReadStates: r.many.chatConversationReadState(),
     conversationsAsProfileOne: r.many.chatConversation({
       from: r.profile.id,
       to: r.chatConversation.profileOneId,
@@ -65,12 +66,14 @@ export const relations = defineRelations(schema, (r) => ({
       from: r.chatConversation.profileTwoId,
       to: r.profile.id,
     }),
+    readStates: r.many.chatConversationReadState(),
   },
   chatMessage: {
     conversation: r.one.chatConversation({
       from: r.chatMessage.conversationId,
       to: r.chatConversation.id,
     }),
+    conversationReadStates: r.many.chatConversationReadState(),
     reactions: r.many.chatMessageReaction(),
     replyToMessage: r.one.chatMessage({
       from: r.chatMessage.replyToMessageId,
@@ -88,6 +91,20 @@ export const relations = defineRelations(schema, (r) => ({
     }),
     profile: r.one.profile({
       from: r.chatMessageReaction.profileId,
+      to: r.profile.id,
+    }),
+  },
+  chatConversationReadState: {
+    conversation: r.one.chatConversation({
+      from: r.chatConversationReadState.conversationId,
+      to: r.chatConversation.id,
+    }),
+    lastReadMessage: r.one.chatMessage({
+      from: r.chatConversationReadState.lastReadMessageId,
+      to: r.chatMessage.id,
+    }),
+    profile: r.one.profile({
+      from: r.chatConversationReadState.profileId,
       to: r.profile.id,
     }),
   },

@@ -9,6 +9,7 @@ import {
   getChatPresenceSnapshot,
   listChatConversations,
   listChatMessages,
+  markChatConversationRead,
   sendTextMessage,
   setMessageReaction,
 } from "@/services/chat-service";
@@ -115,6 +116,35 @@ export const chatRoutes = new Elysia({ prefix: "/api/chat", tags: ["Chat"] })
       }),
       response: {
         200: "ChatMessageListResponse",
+        404: "MessageResponse",
+      },
+    },
+  )
+  .post(
+    "/profiles/:profileId/conversations/:conversationId/read",
+    async ({ body, params, status, user }) => {
+      const result = await markChatConversationRead({
+        profileId: params.profileId,
+        conversationId: params.conversationId,
+        userId: user.id,
+        messageId: body.messageId,
+      });
+
+      if (!result.ok) return status(chatErrorStatus(result.code), { message: result.message });
+
+      return result.data;
+    },
+    {
+      auth: true,
+      params: t.Object({
+        profileId: uuidParam,
+        conversationId: uuidParam,
+      }),
+      body: "ChatConversationReadUpdate",
+      response: {
+        200: "ChatConversation",
+        400: "MessageResponse",
+        403: "MessageResponse",
         404: "MessageResponse",
       },
     },
@@ -357,6 +387,27 @@ export const chatRoutes = new Elysia({ prefix: "/api/chat", tags: ["Chat"] })
             message: result.data,
             clientMessageId: message.clientMessageId,
           });
+        }
+
+        return;
+      }
+
+      if (message.type === "mark_read") {
+        const result = await markChatConversationRead({
+          profileId,
+          conversationId: message.conversationId,
+          userId: ws.data.user.id,
+          messageId: message.messageId,
+        });
+
+        if (!result.ok) {
+          ws.send({
+            type: "error",
+            code: result.code,
+            message: result.message,
+            conversationId: message.conversationId,
+          });
+          return;
         }
 
         return;
