@@ -629,6 +629,7 @@ const notifyAbsentRecipientUsers = async ({
         recipientProfileId,
         messageType: message.messageType,
       },
+      channels: ["push"],
     });
   }
 };
