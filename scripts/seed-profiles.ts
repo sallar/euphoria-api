@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import type {
   profileGenderValues,
   profileOrientationValues,
+  profilePrimaryGenderValues,
   profileRelationshipTypeValues,
   profileTypeValues,
 } from "@/db/profile-schema";
@@ -13,9 +14,9 @@ import { db } from "@/lib/db";
 type ProfileSeed = typeof profile.$inferInsert;
 type ProfileType = (typeof profileTypeValues)[number];
 type ProfileGender = (typeof profileGenderValues)[number];
+type PrimaryGender = (typeof profilePrimaryGenderValues)[number];
 type ProfileOrientation = (typeof profileOrientationValues)[number];
 type ProfileRelationshipType = (typeof profileRelationshipTypeValues)[number];
-type PrimaryGender = Extract<ProfileGender, "man" | "woman" | "non_binary" | "intersex" | "custom">;
 
 type ProfileConfig = {
   profileType: ProfileType;

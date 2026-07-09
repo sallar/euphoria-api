@@ -57,13 +57,7 @@ export const profileRoutes = new Elysia({ prefix: "/api/profile", tags: ["Profil
 
           if (existingProfile) return undefined;
 
-          const [created] = await tx
-            .insert(profile)
-            .values({
-              ...body,
-              profileType: "solo",
-            })
-            .returning();
+          const [created] = await tx.insert(profile).values(body).returning();
 
           await tx.insert(profileUser).values({
             profileId: created.id,
@@ -109,7 +103,7 @@ export const profileRoutes = new Elysia({ prefix: "/api/profile", tags: ["Profil
 
       if (!updatedProfile) return status(404, { message: "Profile not found" });
 
-      return updatedProfile;
+      return updatedProfile as Profile;
     },
     {
       auth: true,

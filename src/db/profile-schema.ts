@@ -55,6 +55,14 @@ export const profileGenderValues = [
   "cultural_gender",
 ] as const;
 
+export const profilePrimaryGenderValues = [
+  "man",
+  "woman",
+  "non_binary",
+  "intersex",
+  "custom",
+] as const satisfies readonly (typeof profileGenderValues)[number][];
+
 export const profileOrientationValues = [
   "heterosexual",
   "heteroflexible",
@@ -196,7 +204,10 @@ export const profile = pgTable(
   (table) => [
     check(
       "profile_primary_gender_check",
-      sql`${table.gender} in ('man', 'woman', 'non_binary', 'intersex', 'custom')`,
+      sql`${table.gender} in (${sql.join(
+        profilePrimaryGenderValues.map((value) => sql`${value}`),
+        sql`, `,
+      )})`,
     ),
     index("profile_feed_visibility_idx")
       .on(table.country, table.hidden, table.deletedAt)

@@ -3,6 +3,7 @@ import Elysia, { t } from "elysia";
 import {
   profileGenderSchema,
   profileOrientationSchema,
+  profilePrimaryGenderSchema,
   profileReactionSchema,
   profileRelationshipTypeSchema,
   profileTypeSchema,
@@ -18,25 +19,22 @@ const ProfilePhoto = t.Object({
 });
 export type ProfilePhoto = typeof ProfilePhoto.static;
 
-const writableProfileFields = {
+const requiredProfileFields = {
   name: t.String({ minLength: 1, maxLength: 120 }),
   bio: t.Nullable(t.String()),
   profileType: profileTypeSchema,
-  gender: profileGenderSchema,
+  gender: profilePrimaryGenderSchema,
   genderInterests: t.Array(profileGenderSchema),
-  genderTags: t.Optional(t.Array(profileGenderSchema)),
   orientation: profileOrientationSchema,
   orientationInterests: t.Array(profileOrientationSchema),
   relationshipTypes: t.Array(profileRelationshipTypeSchema),
-  hidden: t.Optional(t.Boolean()),
   location: t.Object({
     x: t.Number({ minimum: -180, maximum: 180 }), // longitude
     y: t.Number({ minimum: -90, maximum: 90 }), // latitude
   }),
 };
 
-const wirteOnlyFields = {
-  lastSeenAt: t.Optional(t.Date()),
+const identityProfileFields = {
   dateOfBirth: t.String({ format: "date" }),
   country: t.String({ minLength: 2, maxLength: 2 }),
 };
@@ -45,15 +43,27 @@ const Profile = t.Object({
   id: t.String({ format: "uuid" }),
   createdAt: t.Date(),
   updatedAt: t.Date(),
-  ...writableProfileFields,
+  ...requiredProfileFields,
+  ...identityProfileFields,
+  genderTags: t.Array(profileGenderSchema),
+  hidden: t.Boolean(),
 });
 
 const ProfileInsert = t.Object({
-  ...writableProfileFields,
-  ...wirteOnlyFields,
+  ...requiredProfileFields,
+  ...identityProfileFields,
+  genderTags: t.Optional(t.Array(profileGenderSchema)),
+  hidden: t.Optional(t.Boolean()),
 });
 
-const ProfileUpdate = t.Partial(ProfileInsert);
+const ProfileUpdate = t.Partial(
+  t.Object({
+    ...requiredProfileFields,
+    ...identityProfileFields,
+    genderTags: t.Array(profileGenderSchema),
+    hidden: t.Boolean(),
+  }),
+);
 
 const ProfileReactionStatus = t.Object({
   reaction: profileReactionSchema,
@@ -62,7 +72,7 @@ const ProfileReactionStatus = t.Object({
 });
 
 const ProfileFeedItem = t.Object({
-  ...t.Omit(Profile, ["location"]).properties,
+  ...t.Omit(Profile, ["location", "dateOfBirth", "country"]).properties,
   age: t.Number({ minimum: 0 }),
   photos: t.Array(ProfilePhoto),
   distance: t.Number({ minimum: 0 }),

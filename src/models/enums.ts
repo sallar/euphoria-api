@@ -11,6 +11,7 @@ import {
 } from "@/db/notification-schema";
 import {
   profileGenderEnum,
+  profilePrimaryGenderValues,
   profileOrientationEnum,
   profileReactionEnum,
   profileRelationshipTypeEnum,
@@ -24,6 +25,9 @@ export const { createSelectSchema } = createSchemaFactory({
 
 export const profileTypeSchema = createSelectSchema(profileTypeEnum);
 export const profileGenderSchema = createSelectSchema(profileGenderEnum);
+export const profilePrimaryGenderSchema = t.UnionEnum(profilePrimaryGenderValues, {
+  default: undefined,
+});
 export const profileOrientationSchema = createSelectSchema(profileOrientationEnum);
 export const profileRelationshipTypeSchema = createSelectSchema(profileRelationshipTypeEnum);
 export const profileUserRoleSchema = createSelectSchema(profileUserRoleEnum);
