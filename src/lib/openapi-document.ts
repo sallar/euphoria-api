@@ -405,16 +405,25 @@ const authSchemas: Record<string, OpenApiObject> = {
     },
   },
   AuthSessionResponse: {
-    type: ["object", "null"],
+    type: "object",
     additionalProperties: false,
     required: ["session", "user"],
     properties: {
       session: schemaReference("AuthSession"),
       user: schemaReference("AuthUser"),
     },
-    description: "The current session, or null when the bearer token has no active session",
+    description: "The current active bearer session",
   },
-  AuthErrorResponse: schemaReference("ApiErrorResponse"),
+  AuthErrorResponse: {
+    type: "object",
+    additionalProperties: false,
+    required: ["code", "message"],
+    properties: {
+      code: { type: "string" },
+      message: { type: "string" },
+      details: {},
+    },
+  },
   AuthSignUpRequest: {
     type: "object",
     additionalProperties: false,
@@ -499,20 +508,20 @@ const authPaths: Record<string, OpenApiObject> = {
       },
     },
   },
-  "/api/auth/get-session": {
+  "/api/mobile/auth/session": {
     get: {
       tags: ["Authentication"],
       summary: "Get the current authenticated session",
       operationId: "getAuthSession",
       security: [{ bearerAuth: [] }],
       responses: {
-        "200": jsonResponse("Current session or null", "AuthSessionResponse"),
+        "200": jsonResponse("Current active session", "AuthSessionResponse"),
         "401": errorResponse("401", "AuthErrorResponse"),
         "500": errorResponse("500", "AuthErrorResponse"),
       },
     },
   },
-  "/api/auth/sign-out": {
+  "/api/mobile/auth/sign-out": {
     post: {
       tags: ["Authentication"],
       summary: "End the current authenticated session",

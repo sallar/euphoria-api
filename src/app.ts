@@ -10,6 +10,7 @@ import {
 import { auth } from "@/plugins/auth";
 import { chatRoutes } from "@/routes/chat";
 import { feedRoutes } from "@/routes/feed";
+import { mobileAuthRoutes } from "@/routes/mobile-auth";
 import { notificationRoutes } from "@/routes/notifications";
 import { profileRoutes } from "@/routes/profile";
 
@@ -31,6 +32,7 @@ export const application = new Elysia()
     }),
   )
   .use(auth)
+  .use(mobileAuthRoutes)
   .use(chatRoutes)
   .use(feedRoutes)
   .use(notificationRoutes)

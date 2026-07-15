@@ -17,6 +17,10 @@ Open http://localhost:3000/ with your browser to see the result.
 The public contracts use OpenAPI 3.1, bearer security metadata, JSON-only request bodies, and
 path-rooted component pruning so REST clients do not receive websocket-only schemas.
 
+Mobile clients use `GET /api/mobile/auth/session` and `POST /api/mobile/auth/sign-out` for strict
+bearer authentication semantics. The underlying Better Auth compatibility routes remain mounted,
+but are not published in the mobile contract.
+
 To generate a Better Auth bearer token for API testing:
 
 ```bash

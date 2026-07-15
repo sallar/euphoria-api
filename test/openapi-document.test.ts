@@ -1,5 +1,5 @@
 import SwaggerParser from "@apidevtools/swagger-parser";
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 
 import { application } from "@/app";
 import {
@@ -7,6 +7,7 @@ import {
   createOpenApiDocument,
   normalizeOpenApiValue,
 } from "@/lib/openapi-document";
+import { mobileAuthBackend } from "@/routes/mobile-auth";
 
 type JsonObject = Record<string, any>;
 
@@ -265,24 +266,54 @@ describe("application DTO contract", () => {
 describe("mobile authentication contract", () => {
   test("contains only the curated Better Auth operations", () => {
     const authOperations = getOperations(mobileDocument).filter(({ path }) =>
-      path.startsWith("/api/auth/"),
+      path.includes("/auth/"),
     );
     expect(authOperations.map(({ path, method }) => `${method.toUpperCase()} ${path}`)).toEqual([
       "POST /api/auth/sign-up/email",
       "POST /api/auth/sign-in/email",
-      "GET /api/auth/get-session",
-      "POST /api/auth/sign-out",
+      "GET /api/mobile/auth/session",
+      "POST /api/mobile/auth/sign-out",
     ]);
+    expect(mobileDocument.paths["/api/auth/get-session"]).toBeUndefined();
+    expect(mobileDocument.paths["/api/auth/sign-out"]).toBeUndefined();
     expect(mobileDocument.paths["/api/notifications/test/{userId}"]).toBeUndefined();
   });
 
   test("marks credential operations public and session operations protected", () => {
     expect(mobileDocument.paths["/api/auth/sign-up/email"].post.security).toEqual([]);
     expect(mobileDocument.paths["/api/auth/sign-in/email"].post.security).toEqual([]);
-    expect(mobileDocument.paths["/api/auth/get-session"].get.security).toEqual([
+    expect(mobileDocument.paths["/api/mobile/auth/session"].get.security).toEqual([
       { bearerAuth: [] },
     ]);
-    expect(mobileDocument.paths["/api/auth/sign-out"].post.security).toEqual([{ bearerAuth: [] }]);
+    expect(mobileDocument.paths["/api/mobile/auth/sign-out"].post.security).toEqual([
+      { bearerAuth: [] },
+    ]);
+  });
+
+  test("publishes non-null session success and typed unauthorized responses", () => {
+    const sessionSchema = mobileDocument.components.schemas.AuthSessionResponse;
+    expect(sessionSchema.type).toBe("object");
+    expect(acceptsNull(sessionSchema)).toBeFalse();
+    expect(sessionSchema.required).toEqual(["session", "user"]);
+
+    const sessionOperation = mobileDocument.paths["/api/mobile/auth/session"].get;
+    expect(sessionOperation.responses["200"].content["application/json"].schema.$ref).toBe(
+      "#/components/schemas/AuthSessionResponse",
+    );
+    expect(sessionOperation.responses["401"].content["application/json"].schema.$ref).toBe(
+      "#/components/schemas/AuthErrorResponse",
+    );
+
+    const signOutOperation = mobileDocument.paths["/api/mobile/auth/sign-out"].post;
+    expect(signOutOperation.responses["200"].content["application/json"].schema.$ref).toBe(
+      "#/components/schemas/AuthSignOutResponse",
+    );
+    expect(signOutOperation.responses["401"].content["application/json"].schema.$ref).toBe(
+      "#/components/schemas/AuthErrorResponse",
+    );
+
+    const authError = mobileDocument.components.schemas.AuthErrorResponse;
+    expect(authError.required).toEqual(["code", "message"]);
   });
 
   test("documents the canonical set-auth-token response header", () => {
@@ -299,6 +330,106 @@ describe("mobile authentication contract", () => {
     expect(mobileDocument.components.schemas.AuthSession.required).toContain("userId");
   });
 });
+
+describe("mobile authentication runtime adapters", () => {
+  test.each([
+    ["missing", undefined],
+    ["invalid", "invalid.signature"],
+  ])("session returns JSON 401 when the bearer token is %s", async (_name, token) => {
+    const response = await application.handle(mobileAuthRequest("/session", "GET", token));
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get("content-type")).toContain("application/json");
+    expect(await response.json()).toEqual({
+      code: "UNAUTHORIZED",
+      message: "A valid active bearer token is required",
+    });
+  });
+
+  test("session returns a non-null response for a valid active bearer token", async () => {
+    const getSession = spyOn(mobileAuthBackend, "getSession").mockResolvedValue(
+      activeSessionFixture,
+    );
+
+    try {
+      const response = await application.handle(
+        mobileAuthRequest("/session", "GET", "active-session-token"),
+      );
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body).not.toBeNull();
+      expect(body.session.id).toBe(activeSessionFixture.session.id);
+      expect(body.user.id).toBe(activeSessionFixture.user.id);
+    } finally {
+      getSession.mockRestore();
+    }
+  });
+
+  test.each([
+    ["missing", undefined],
+    ["invalid", "invalid.signature"],
+  ])("sign-out returns JSON 401 when the bearer token is %s", async (_name, token) => {
+    const response = await application.handle(mobileAuthRequest("/sign-out", "POST", token));
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get("content-type")).toContain("application/json");
+    expect(await response.json()).toEqual({
+      code: "UNAUTHORIZED",
+      message: "A valid active bearer token is required",
+    });
+  });
+
+  test("sign-out returns success after validating an active bearer token", async () => {
+    const getSession = spyOn(mobileAuthBackend, "getSession").mockResolvedValue(
+      activeSessionFixture,
+    );
+    const signOut = spyOn(mobileAuthBackend, "signOut").mockResolvedValue({ success: true });
+
+    try {
+      const response = await application.handle(
+        mobileAuthRequest("/sign-out", "POST", "active-session-token"),
+      );
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ success: true });
+      expect(signOut).toHaveBeenCalledTimes(1);
+    } finally {
+      getSession.mockRestore();
+      signOut.mockRestore();
+    }
+  });
+});
+
+const fixtureDate = new Date("2026-07-15T12:00:00.000Z");
+const activeSessionFixture = {
+  session: {
+    id: "session-id",
+    expiresAt: new Date("2026-07-22T12:00:00.000Z"),
+    token: "active-session-token",
+    createdAt: fixtureDate,
+    updatedAt: fixtureDate,
+    ipAddress: null,
+    userAgent: null,
+    userId: "user-id",
+  },
+  user: {
+    id: "user-id",
+    name: "Mobile Test User",
+    email: "mobile-test@example.com",
+    emailVerified: true,
+    image: null,
+    createdAt: fixtureDate,
+    updatedAt: fixtureDate,
+  },
+};
+
+function mobileAuthRequest(path: "/session" | "/sign-out", method: "GET" | "POST", token?: string) {
+  const headers = new Headers();
+  if (token) headers.set("authorization", `Bearer ${token}`);
+
+  return new Request(`http://localhost/api/mobile/auth${path}`, { method, headers });
+}
 
 function getOperations(document: JsonObject) {
   const operations: Array<{ path: string; method: string; operation: JsonObject }> = [];
