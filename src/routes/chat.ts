@@ -60,7 +60,11 @@ export const chatRoutes = new Elysia({ prefix: "/api/chat", tags: ["Chat"] })
       }),
       response: {
         200: "ChatConversationListResponse",
-        404: "MessageResponse",
+        404: "ApiErrorResponse",
+      },
+      detail: {
+        operationId: "listChatConversations",
+        security: [{ bearerAuth: [] }],
       },
     },
   )
@@ -85,7 +89,11 @@ export const chatRoutes = new Elysia({ prefix: "/api/chat", tags: ["Chat"] })
       }),
       response: {
         200: "ChatConversation",
-        404: "MessageResponse",
+        404: "ApiErrorResponse",
+      },
+      detail: {
+        operationId: "getChatConversation",
+        security: [{ bearerAuth: [] }],
       },
     },
   )
@@ -116,7 +124,11 @@ export const chatRoutes = new Elysia({ prefix: "/api/chat", tags: ["Chat"] })
       }),
       response: {
         200: "ChatMessageListResponse",
-        404: "MessageResponse",
+        404: "ApiErrorResponse",
+      },
+      detail: {
+        operationId: "listChatMessages",
+        security: [{ bearerAuth: [] }],
       },
     },
   )
@@ -136,6 +148,7 @@ export const chatRoutes = new Elysia({ prefix: "/api/chat", tags: ["Chat"] })
     },
     {
       auth: true,
+      parse: "json",
       params: t.Object({
         profileId: uuidParam,
         conversationId: uuidParam,
@@ -143,9 +156,13 @@ export const chatRoutes = new Elysia({ prefix: "/api/chat", tags: ["Chat"] })
       body: "ChatConversationReadUpdate",
       response: {
         200: "ChatConversation",
-        400: "MessageResponse",
-        403: "MessageResponse",
-        404: "MessageResponse",
+        400: "ApiErrorResponse",
+        403: "ApiErrorResponse",
+        404: "ApiErrorResponse",
+      },
+      detail: {
+        operationId: "markChatConversationRead",
+        security: [{ bearerAuth: [] }],
       },
     },
   )
@@ -166,6 +183,7 @@ export const chatRoutes = new Elysia({ prefix: "/api/chat", tags: ["Chat"] })
     },
     {
       auth: true,
+      parse: "json",
       params: t.Object({
         profileId: uuidParam,
         conversationId: uuidParam,
@@ -173,9 +191,13 @@ export const chatRoutes = new Elysia({ prefix: "/api/chat", tags: ["Chat"] })
       body: "ChatMessageInsert",
       response: {
         201: "ChatMessage",
-        400: "MessageResponse",
-        403: "MessageResponse",
-        404: "MessageResponse",
+        400: "ApiErrorResponse",
+        403: "ApiErrorResponse",
+        404: "ApiErrorResponse",
+      },
+      detail: {
+        operationId: "sendChatMessage",
+        security: [{ bearerAuth: [] }],
       },
     },
   )
@@ -197,6 +219,7 @@ export const chatRoutes = new Elysia({ prefix: "/api/chat", tags: ["Chat"] })
     },
     {
       auth: true,
+      parse: "json",
       params: t.Object({
         profileId: uuidParam,
         conversationId: uuidParam,
@@ -205,9 +228,13 @@ export const chatRoutes = new Elysia({ prefix: "/api/chat", tags: ["Chat"] })
       body: "ChatMessageReactionInput",
       response: {
         200: "ChatMessage",
-        400: "MessageResponse",
-        403: "MessageResponse",
-        404: "MessageResponse",
+        400: "ApiErrorResponse",
+        403: "ApiErrorResponse",
+        404: "ApiErrorResponse",
+      },
+      detail: {
+        operationId: "addChatMessageReaction",
+        security: [{ bearerAuth: [] }],
       },
     },
   )
@@ -229,6 +256,7 @@ export const chatRoutes = new Elysia({ prefix: "/api/chat", tags: ["Chat"] })
     },
     {
       auth: true,
+      parse: "json",
       params: t.Object({
         profileId: uuidParam,
         conversationId: uuidParam,
@@ -237,9 +265,13 @@ export const chatRoutes = new Elysia({ prefix: "/api/chat", tags: ["Chat"] })
       body: "ChatMessageReactionInput",
       response: {
         200: "ChatMessage",
-        400: "MessageResponse",
-        403: "MessageResponse",
-        404: "MessageResponse",
+        400: "ApiErrorResponse",
+        403: "ApiErrorResponse",
+        404: "ApiErrorResponse",
+      },
+      detail: {
+        operationId: "removeChatMessageReaction",
+        security: [{ bearerAuth: [] }],
       },
     },
   )

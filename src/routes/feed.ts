@@ -8,7 +8,6 @@ import { findOwnedProfile, findPublicProfilePhotos } from "@/lib/profile-queries
 import { commonModel } from "@/models/common";
 import { profileTypeSchema } from "@/models/enums";
 import { type ProfileFeedItem, profileModel } from "@/models/profile";
-import { ref } from "@/models/utils";
 import { auth } from "@/plugins/auth";
 
 const defaultPageSize = 20;
@@ -170,9 +169,13 @@ export const feedRoutes = new Elysia({ prefix: "/api/profile", tags: ["Feed"] })
         profileType: t.Optional(profileTypeSchema),
       }),
       response: {
-        200: ref("ProfileFeedResponse"),
-        400: "MessageResponse",
-        404: "MessageResponse",
+        200: "ProfileFeedResponse",
+        400: "ApiErrorResponse",
+        404: "ApiErrorResponse",
+      },
+      detail: {
+        operationId: "listProfileFeed",
+        security: [{ bearerAuth: [] }],
       },
     },
   );

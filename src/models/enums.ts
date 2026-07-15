@@ -40,3 +40,19 @@ export const notificationDeliveryStatusSchema = createSelectSchema(
 );
 export const pushProviderSchema = createSelectSchema(notificationPushProviderEnum);
 export const devicePlatformSchema = createSelectSchema(notificationDevicePlatformEnum);
+
+export const namedEnumSchemas = {
+  ChatMessageType: chatMessageTypeSchema,
+  DevicePlatform: devicePlatformSchema,
+  NotificationChannel: notificationChannelSchema,
+  NotificationDeliveryStatus: notificationDeliveryStatusSchema,
+  NotificationType: notificationTypeSchema,
+  ProfileGender: profileGenderSchema,
+  ProfileOrientation: profileOrientationSchema,
+  ProfilePrimaryGender: profilePrimaryGenderSchema,
+  ProfileReactionType: profileReactionSchema,
+  ProfileRelationshipType: profileRelationshipTypeSchema,
+  ProfileType: profileTypeSchema,
+  ProfileUserRole: profileUserRoleSchema,
+  PushProvider: pushProviderSchema,
+} as const;

@@ -1,7 +1,6 @@
 import Elysia, { t } from "elysia";
 
 import { chatMessageTypeSchema, profileTypeSchema } from "./enums";
-import { ref } from "./utils";
 
 const uuid = t.String({ format: "uuid" });
 const messageText = t.String({ minLength: 1, maxLength: 4000 });
@@ -17,13 +16,13 @@ const ChatMessageAttachment = t.Object({
   type: t.Literal("image"),
   url: t.String(),
   mimeType: t.Optional(t.String()),
-  width: t.Optional(t.Number({ minimum: 1 })),
-  height: t.Optional(t.Number({ minimum: 1 })),
+  width: t.Optional(t.Integer({ minimum: 1 })),
+  height: t.Optional(t.Integer({ minimum: 1 })),
 });
 
 const ChatMessageReactionCount = t.Object({
   emoji: reactionEmoji,
-  count: t.Number({ minimum: 0 }),
+  count: t.Integer({ minimum: 0 }),
 });
 
 const ChatConversationLastMessage = t.Object({
@@ -37,7 +36,7 @@ const ChatConversationLastMessage = t.Object({
 const ChatConversationReadState = t.Object({
   lastReadMessageId: t.Nullable(uuid),
   lastReadAt: t.Nullable(t.Date()),
-  unreadCount: t.Number({ minimum: 0 }),
+  unreadCount: t.Integer({ minimum: 0 }),
   firstUnreadMessageId: t.Nullable(uuid),
   firstUnreadMessageCreatedAt: t.Nullable(t.Date()),
 });
@@ -48,13 +47,13 @@ const ChatMessage = t.Object({
   senderProfileId: t.Nullable(uuid),
   messageType: chatMessageTypeSchema,
   content: t.Nullable(t.String()),
-  attachments: t.Array(ref("ChatMessageAttachment")),
+  attachments: t.Array(ChatMessageAttachment),
   replyToMessageId: t.Nullable(uuid),
   editedAt: t.Nullable(t.Date()),
   deletedAt: t.Nullable(t.Date()),
   createdAt: t.Date(),
   updatedAt: t.Date(),
-  reactionCounts: t.Array(ref("ChatMessageReactionCount")),
+  reactionCounts: t.Array(ChatMessageReactionCount),
   viewerReactions: t.Array(reactionEmoji),
 });
 
@@ -63,28 +62,28 @@ const ChatConversation = t.Object({
   profileOneId: uuid,
   profileTwoId: uuid,
   matchedProfileId: uuid,
-  matchedProfile: ref("ChatProfileSummary"),
+  matchedProfile: ChatProfileSummary,
   isMatched: t.Boolean(),
   lastMessageAt: t.Nullable(t.Date()),
-  lastMessage: t.Nullable(ref("ChatConversationLastMessage")),
-  readState: ref("ChatConversationReadState"),
+  lastMessage: t.Optional(ChatConversationLastMessage),
+  readState: ChatConversationReadState,
   createdAt: t.Date(),
   updatedAt: t.Date(),
 });
 
 const ChatConversationListResponse = t.Object({
-  data: t.Array(ref("ChatConversation")),
+  data: t.Array(ChatConversation),
   cursor: t.Nullable(t.String({ format: "date-time" })),
 });
 
 const ChatMessageListResponse = t.Object({
-  data: t.Array(ref("ChatMessage")),
+  data: t.Array(ChatMessage),
   cursor: t.Nullable(t.String({ format: "date-time" })),
 });
 
 const ChatMessageInsert = t.Object({
   text: messageText,
-  replyToMessageId: t.Optional(t.Nullable(uuid)),
+  replyToMessageId: t.Optional(uuid),
 });
 
 const ChatMessageReactionInput = t.Object({
@@ -92,7 +91,7 @@ const ChatMessageReactionInput = t.Object({
 });
 
 const ChatConversationReadUpdate = t.Object({
-  messageId: t.Optional(t.Nullable(uuid)),
+  messageId: t.Optional(uuid),
 });
 
 const ChatSocketMessage = t.Union([
@@ -111,7 +110,7 @@ const ChatSocketMessage = t.Union([
     type: t.Literal("send_message"),
     conversationId: uuid,
     text: messageText,
-    replyToMessageId: t.Optional(t.Nullable(uuid)),
+    replyToMessageId: t.Optional(uuid),
     clientMessageId: t.Optional(t.String({ minLength: 1, maxLength: 120 })),
   }),
   t.Object({
@@ -122,7 +121,7 @@ const ChatSocketMessage = t.Union([
   t.Object({
     type: t.Literal("mark_read"),
     conversationId: uuid,
-    messageId: t.Optional(t.Nullable(uuid)),
+    messageId: t.Optional(uuid),
   }),
   t.Object({
     type: t.Literal("add_reaction"),

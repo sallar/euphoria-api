@@ -22,7 +22,8 @@
 
 - Export TypeScript types from TypeBox schemas with `typeof Schema.static` so services and websocket helpers share the same response shapes.
 - Add Drizzle enum TypeBox schemas in `src/models/enums.ts` with `createSelectSchema(...)`; import the enum from the feature schema file.
-- Use `ref("ModelName")` from `src/models/utils.ts` for nested model refs and arrays, for example `t.Array(ref("Notification"))`. Top-level route responses can use registered model names like `"Notification"`.
+- Use concrete TypeBox schemas for nested models and arrays. Top-level route schemas can use properly registered Elysia model names like `"Notification"`.
+- Never put `#/components/...` references in runtime TypeBox schemas. Reusable OpenAPI component references are added by the public document exporter after Elysia has built its internal schema.
 - Mount the relevant model plugin before routes that use its model names, and mount `commonModel` before using `"MessageResponse"`.
 - For query parameters that arrive as strings, prefer Elysia coercion helpers such as `t.Numeric(...)` and `t.BooleanString()`.
 - For websocket routes, validate incoming messages with `body: "SomeSocketMessage"`. Avoid complex `response: "SomeSocketEvent"` schemas that contain unions and refs; current Elysia can log `Failed to create exactMirror` at startup for those. Keep socket event objects typed in TypeScript instead.

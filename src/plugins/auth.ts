@@ -8,7 +8,11 @@ export const auth = new Elysia({ name: "better-auth" }).mount(betterAuth.handler
       const session = await betterAuth.api.getSession({
         headers,
       });
-      if (!session) return status(401);
+      if (!session)
+        return status(401, {
+          code: "unauthorized",
+          message: "Authentication required",
+        });
       return {
         user: session.user,
         session: session.session,

@@ -8,11 +8,10 @@ import {
   profileRelationshipTypeSchema,
   profileTypeSchema,
 } from "./enums";
-import { ref } from "./utils";
 
 const ProfilePhoto = t.Object({
   id: t.String({ format: "uuid" }),
-  position: t.Number({ minimum: 0 }),
+  position: t.Integer({ minimum: 0 }),
   connectionOnly: t.Boolean(),
   hash: t.String(),
   url: t.String(),
@@ -21,7 +20,6 @@ export type ProfilePhoto = typeof ProfilePhoto.static;
 
 const requiredProfileFields = {
   name: t.String({ minLength: 1, maxLength: 120 }),
-  bio: t.Nullable(t.String()),
   profileType: profileTypeSchema,
   gender: profilePrimaryGenderSchema,
   genderInterests: t.Array(profileGenderSchema),
@@ -39,11 +37,12 @@ const identityProfileFields = {
   country: t.String({ minLength: 2, maxLength: 2 }),
 };
 
-const Profile = t.Object({
+export const Profile = t.Object({
   id: t.String({ format: "uuid" }),
   createdAt: t.Date(),
   updatedAt: t.Date(),
   ...requiredProfileFields,
+  bio: t.Nullable(t.String()),
   ...identityProfileFields,
   genderTags: t.Array(profileGenderSchema),
   hidden: t.Boolean(),
@@ -51,6 +50,7 @@ const Profile = t.Object({
 
 const ProfileInsert = t.Object({
   ...requiredProfileFields,
+  bio: t.Optional(t.String()),
   ...identityProfileFields,
   genderTags: t.Optional(t.Array(profileGenderSchema)),
   hidden: t.Optional(t.Boolean()),
@@ -59,6 +59,7 @@ const ProfileInsert = t.Object({
 const ProfileUpdate = t.Partial(
   t.Object({
     ...requiredProfileFields,
+    bio: t.String(),
     ...identityProfileFields,
     genderTags: t.Array(profileGenderSchema),
     hidden: t.Boolean(),
@@ -73,13 +74,13 @@ const ProfileReactionStatus = t.Object({
 
 const ProfileFeedItem = t.Object({
   ...t.Omit(Profile, ["location", "dateOfBirth", "country"]).properties,
-  age: t.Number({ minimum: 0 }),
+  age: t.Integer({ minimum: 0 }),
   photos: t.Array(ProfilePhoto),
   distance: t.Number({ minimum: 0 }),
 });
 
 const ProfileFeedResponse = t.Object({
-  data: t.Array(ref("ProfileFeedItem")),
+  data: t.Array(ProfileFeedItem),
   cursor: t.Nullable(t.Number({ minimum: 0 })),
 });
 

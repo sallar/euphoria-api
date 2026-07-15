@@ -7,7 +7,6 @@ import {
   notificationTypeSchema,
   pushProviderSchema,
 } from "./enums";
-import { ref } from "./utils";
 
 const notificationData = t.Record(t.String(), t.Any());
 const uuid = t.String({ format: "uuid" });
@@ -27,12 +26,12 @@ const Notification = t.Object({
 });
 
 const NotificationListResponse = t.Object({
-  data: t.Array(ref("Notification")),
+  data: t.Array(Notification),
   cursor: t.Nullable(t.String({ format: "date-time" })),
 });
 
 const NotificationUnreadCount = t.Object({
-  count: t.Number({ minimum: 0 }),
+  count: t.Integer({ minimum: 0 }),
 });
 
 const NotificationDelivery = t.Object({
@@ -42,7 +41,7 @@ const NotificationDelivery = t.Object({
   status: notificationDeliveryStatusSchema,
   provider: t.Nullable(pushProviderSchema),
   pushTokenId: t.Nullable(uuid),
-  attemptCount: t.Number({ minimum: 0 }),
+  attemptCount: t.Integer({ minimum: 0 }),
   lastAttemptAt: t.Nullable(t.Date()),
   nextAttemptAt: t.Nullable(t.Date()),
   deliveredAt: t.Nullable(t.Date()),
@@ -53,10 +52,10 @@ const NotificationDelivery = t.Object({
 });
 
 const NotificationReadAllResponse = t.Object({
-  count: t.Number({ minimum: 0 }),
+  count: t.Integer({ minimum: 0 }),
 });
 
-const PushToken = t.Object({
+export const PushToken = t.Object({
   id: uuid,
   provider: pushProviderSchema,
   token: t.String(),
@@ -72,7 +71,7 @@ const PushToken = t.Object({
 const PushTokenInsert = t.Object({
   token: t.String({ minLength: 1 }),
   platform: devicePlatformSchema,
-  deviceId: t.Optional(t.Nullable(t.String())),
+  deviceId: t.Optional(t.String()),
 });
 
 const NotificationSocketMessage = t.Union([
@@ -91,23 +90,23 @@ const NotificationSocketMessage = t.Union([
 const NotificationSocketEvent = t.Union([
   t.Object({
     type: t.Literal("connected"),
-    unreadCount: t.Number({ minimum: 0 }),
+    unreadCount: t.Integer({ minimum: 0 }),
   }),
   t.Object({
     type: t.Literal("notification"),
-    notification: ref("Notification"),
+    notification: Notification,
   }),
   t.Object({
     type: t.Literal("unread_count"),
-    count: t.Number({ minimum: 0 }),
+    count: t.Integer({ minimum: 0 }),
   }),
   t.Object({
     type: t.Literal("notification_read"),
-    notification: t.Nullable(ref("Notification")),
+    notification: t.Nullable(Notification),
   }),
   t.Object({
     type: t.Literal("notifications_read"),
-    count: t.Number({ minimum: 0 }),
+    count: t.Integer({ minimum: 0 }),
   }),
   t.Object({
     type: t.Literal("pong"),

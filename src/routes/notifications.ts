@@ -1,8 +1,7 @@
 import Elysia, { t } from "elysia";
 
 import { commonModel } from "@/models/common";
-import { notificationModel } from "@/models/notification";
-import { ref } from "@/models/utils";
+import { notificationModel, PushToken } from "@/models/notification";
 import { auth } from "@/plugins/auth";
 import {
   archiveNotification,
@@ -26,22 +25,32 @@ export const notificationRoutes = new Elysia({
   .use(commonModel)
   .get(
     "/test/:userId",
-    async ({ params, status }) => {
+    async ({ params, status, user }) => {
+      if (params.userId !== user.id)
+        return status(403, {
+          code: "forbidden",
+          message: "Test notifications can only be sent to the authenticated user",
+        });
+
       const result = await sendRandomTestNotification(params.userId);
       if (!result) return status(404, { message: "User not found" });
 
       return status(201, result.notification);
     },
     {
+      auth: true,
       params: t.Object({
         userId: t.String({ minLength: 1 }),
       }),
       response: {
         201: "Notification",
-        404: "MessageResponse",
+        403: "ApiErrorResponse",
+        404: "ApiErrorResponse",
       },
       detail: {
-        summary: "Send a test notification to a user without auth",
+        operationId: "sendTestNotification",
+        security: [{ bearerAuth: [] }],
+        summary: "Send a test notification to the authenticated user",
       },
     },
   )
@@ -64,6 +73,10 @@ export const notificationRoutes = new Elysia({
       response: {
         200: "NotificationListResponse",
       },
+      detail: {
+        operationId: "listNotifications",
+        security: [{ bearerAuth: [] }],
+      },
     },
   )
   .get(
@@ -76,6 +89,10 @@ export const notificationRoutes = new Elysia({
       response: {
         200: "NotificationUnreadCount",
       },
+      detail: {
+        operationId: "getNotificationUnreadCount",
+        security: [{ bearerAuth: [] }],
+      },
     },
   )
   .patch(
@@ -87,6 +104,10 @@ export const notificationRoutes = new Elysia({
       auth: true,
       response: {
         200: "NotificationReadAllResponse",
+      },
+      detail: {
+        operationId: "markAllNotificationsRead",
+        security: [{ bearerAuth: [] }],
       },
     },
   )
@@ -103,7 +124,11 @@ export const notificationRoutes = new Elysia({
       params: t.Object({ id: t.String({ format: "uuid" }) }),
       response: {
         200: "Notification",
-        404: "MessageResponse",
+        404: "ApiErrorResponse",
+      },
+      detail: {
+        operationId: "markNotificationRead",
+        security: [{ bearerAuth: [] }],
       },
     },
   )
@@ -120,14 +145,22 @@ export const notificationRoutes = new Elysia({
       params: t.Object({ id: t.String({ format: "uuid" }) }),
       response: {
         200: "MessageResponse",
-        404: "MessageResponse",
+        404: "ApiErrorResponse",
+      },
+      detail: {
+        operationId: "dismissNotification",
+        security: [{ bearerAuth: [] }],
       },
     },
   )
   .get("/push-tokens", async ({ user }) => listPushTokens(user.id), {
     auth: true,
     response: {
-      200: t.Array(ref("PushToken")),
+      200: t.Array(PushToken),
+    },
+    detail: {
+      operationId: "listPushTokens",
+      security: [{ bearerAuth: [] }],
     },
   })
   .post(
@@ -144,9 +177,14 @@ export const notificationRoutes = new Elysia({
     },
     {
       auth: true,
+      parse: "json",
       body: "PushTokenInsert",
       response: {
         201: "PushToken",
+      },
+      detail: {
+        operationId: "registerPushToken",
+        security: [{ bearerAuth: [] }],
       },
     },
   )
@@ -163,7 +201,11 @@ export const notificationRoutes = new Elysia({
       params: t.Object({ id: t.String({ format: "uuid" }) }),
       response: {
         200: "MessageResponse",
-        404: "MessageResponse",
+        404: "ApiErrorResponse",
+      },
+      detail: {
+        operationId: "disablePushToken",
+        security: [{ bearerAuth: [] }],
       },
     },
   )
