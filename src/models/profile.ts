@@ -1,18 +1,19 @@
 import Elysia, { t } from "elysia";
 
 import {
-  profileGenderSchema,
-  profileOrientationSchema,
-  profilePrimaryGenderSchema,
-  profileReactionSchema,
-  profileRelationshipTypeSchema,
-  profileTypeSchema,
+  enumModel,
+  profileGenderRef,
+  profileOrientationRef,
+  profilePrimaryGenderRef,
+  profileReactionRef,
+  profileRelationshipTypeRef,
+  profileTypeRef,
 } from "./enums";
 import { ref } from "./utils";
 
 const ProfilePhoto = t.Object({
   id: t.String({ format: "uuid" }),
-  position: t.Number({ minimum: 0 }),
+  position: t.Integer({ minimum: 0 }),
   connectionOnly: t.Boolean(),
   hash: t.String(),
   url: t.String(),
@@ -21,13 +22,12 @@ export type ProfilePhoto = typeof ProfilePhoto.static;
 
 const requiredProfileFields = {
   name: t.String({ minLength: 1, maxLength: 120 }),
-  bio: t.Nullable(t.String()),
-  profileType: profileTypeSchema,
-  gender: profilePrimaryGenderSchema,
-  genderInterests: t.Array(profileGenderSchema),
-  orientation: profileOrientationSchema,
-  orientationInterests: t.Array(profileOrientationSchema),
-  relationshipTypes: t.Array(profileRelationshipTypeSchema),
+  profileType: profileTypeRef,
+  gender: profilePrimaryGenderRef,
+  genderInterests: t.Array(profileGenderRef),
+  orientation: profileOrientationRef,
+  orientationInterests: t.Array(profileOrientationRef),
+  relationshipTypes: t.Array(profileRelationshipTypeRef),
   location: t.Object({
     x: t.Number({ minimum: -180, maximum: 180 }), // longitude
     y: t.Number({ minimum: -90, maximum: 90 }), // latitude
@@ -44,36 +44,39 @@ const Profile = t.Object({
   createdAt: t.Date(),
   updatedAt: t.Date(),
   ...requiredProfileFields,
+  bio: t.Nullable(t.String()),
   ...identityProfileFields,
-  genderTags: t.Array(profileGenderSchema),
+  genderTags: t.Array(profileGenderRef),
   hidden: t.Boolean(),
 });
 
 const ProfileInsert = t.Object({
   ...requiredProfileFields,
+  bio: t.Optional(t.String()),
   ...identityProfileFields,
-  genderTags: t.Optional(t.Array(profileGenderSchema)),
+  genderTags: t.Optional(t.Array(profileGenderRef)),
   hidden: t.Optional(t.Boolean()),
 });
 
 const ProfileUpdate = t.Partial(
   t.Object({
     ...requiredProfileFields,
+    bio: t.String(),
     ...identityProfileFields,
-    genderTags: t.Array(profileGenderSchema),
+    genderTags: t.Array(profileGenderRef),
     hidden: t.Boolean(),
   }),
 );
 
 const ProfileReactionStatus = t.Object({
-  reaction: profileReactionSchema,
+  reaction: profileReactionRef,
   matched: t.Optional(t.Boolean()),
   conversationId: t.Optional(t.Nullable(t.String({ format: "uuid" }))),
 });
 
 const ProfileFeedItem = t.Object({
   ...t.Omit(Profile, ["location", "dateOfBirth", "country"]).properties,
-  age: t.Number({ minimum: 0 }),
+  age: t.Integer({ minimum: 0 }),
   photos: t.Array(ProfilePhoto),
   distance: t.Number({ minimum: 0 }),
 });
@@ -92,7 +95,7 @@ export const profileSelectColumns = Object.fromEntries(
   [Key in keyof typeof Profile.properties]: true;
 };
 
-export const profileModel = new Elysia({ name: "profile-model" }).model({
+export const profileModel = new Elysia({ name: "profile-model" }).use(enumModel).model({
   Profile,
   ProfileFeedItem,
   ProfileFeedResponse,

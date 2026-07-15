@@ -22,7 +22,7 @@ const main = async () => {
   console.log(`Body: ${result.notification.body}`);
   console.log("");
   console.log(
-    "Note: this script writes to the database. Use POST /api/notifications/test/:userId to test websocket delivery.",
+    "Note: this script writes to the database. The REST test endpoint requires a bearer token and only accepts the authenticated user's ID.",
   );
 };
 

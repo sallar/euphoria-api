@@ -2,7 +2,8 @@
   "name": "api",
   "version": "1.0.50",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "bun test",
+    "test:openapi": "bun test test/openapi-document.test.ts",
     "dev": "bun run --watch src/index.ts",
     "auth:token": "bun run scripts/generate-auth-token.ts",
     "notifications:test": "bun run scripts/send-test-notification.ts",
@@ -25,6 +26,7 @@
     "pg": "^8.20.0"
   },
   "devDependencies": {
+    "@apidevtools/swagger-parser": "^12.1.0",
     "bun-types": "latest",
     "drizzle-kit": "^1.0.0-beta.22",
     "oxfmt": "^0.50.0",

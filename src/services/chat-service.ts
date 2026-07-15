@@ -135,16 +135,17 @@ const toConversation = (row: RawConversationRow): ChatConversation => ({
   },
   isMatched: row.isMatched,
   lastMessageAt: row.lastMessageAt,
-  lastMessage:
-    row.lastMessageId && row.lastMessageType && row.lastMessageCreatedAt
-      ? {
+  ...(row.lastMessageId && row.lastMessageType && row.lastMessageCreatedAt
+    ? {
+        lastMessage: {
           id: row.lastMessageId,
           senderProfileId: row.lastMessageSenderProfileId,
           messageType: row.lastMessageType,
           content: row.lastMessageContent,
           createdAt: row.lastMessageCreatedAt,
-        }
-      : null,
+        },
+      }
+    : {}),
   readState: {
     lastReadMessageId: row.readStateLastReadMessageId,
     lastReadAt: row.readStateLastReadAt,
@@ -1080,7 +1081,7 @@ export const markChatConversationRead = async ({
   userId,
 }: {
   conversationId: string;
-  messageId?: string | null;
+  messageId?: string;
   profileId: string;
   userId: string;
 }): Promise<ChatServiceResult<ChatConversation>> => {
@@ -1211,7 +1212,7 @@ export const sendTextMessage = async ({
   clientMessageId?: string;
   conversationId: string;
   profileId: string;
-  replyToMessageId?: string | null;
+  replyToMessageId?: string;
   text: string;
   userId: string;
 }): Promise<ChatServiceResult<ChatMessage>> => {

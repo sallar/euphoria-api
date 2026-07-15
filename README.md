@@ -8,6 +8,15 @@ bun dev
 
 Open http://localhost:3000/ with your browser to see the result.
 
+### OpenAPI contracts
+
+- `GET /openapi/internal.json` returns the raw Elysia document for backend diagnostics.
+- `GET /openapi/json` returns the normalized application REST contract.
+- `GET /openapi/mobile.json` returns the application contract plus the supported Better Auth mobile operations.
+
+The public contracts use OpenAPI 3.1, bearer security metadata, JSON-only request bodies, and
+path-rooted component pruning so REST clients do not receive websocket-only schemas.
+
 To generate a Better Auth bearer token for API testing:
 
 ```bash

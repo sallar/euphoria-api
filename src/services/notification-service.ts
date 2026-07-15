@@ -479,7 +479,7 @@ export const registerPushToken = async ({
   token,
   userId,
 }: {
-  deviceId?: string | null;
+  deviceId?: string;
   platform: PushToken["platform"];
   token: string;
   userId: string;

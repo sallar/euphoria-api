@@ -1,11 +1,12 @@
 import Elysia, { t } from "elysia";
 
 import {
-  devicePlatformSchema,
-  notificationChannelSchema,
-  notificationDeliveryStatusSchema,
-  notificationTypeSchema,
-  pushProviderSchema,
+  devicePlatformRef,
+  enumModel,
+  notificationChannelRef,
+  notificationDeliveryStatusRef,
+  notificationTypeRef,
+  pushProviderRef,
 } from "./enums";
 import { ref } from "./utils";
 
@@ -16,7 +17,7 @@ const Notification = t.Object({
   id: uuid,
   createdAt: t.Date(),
   updatedAt: t.Date(),
-  type: notificationTypeSchema,
+  type: notificationTypeRef,
   title: t.String(),
   body: t.String(),
   data: notificationData,
@@ -32,17 +33,17 @@ const NotificationListResponse = t.Object({
 });
 
 const NotificationUnreadCount = t.Object({
-  count: t.Number({ minimum: 0 }),
+  count: t.Integer({ minimum: 0 }),
 });
 
 const NotificationDelivery = t.Object({
   id: uuid,
   notificationId: uuid,
-  channel: notificationChannelSchema,
-  status: notificationDeliveryStatusSchema,
-  provider: t.Nullable(pushProviderSchema),
+  channel: notificationChannelRef,
+  status: notificationDeliveryStatusRef,
+  provider: t.Nullable(pushProviderRef),
   pushTokenId: t.Nullable(uuid),
-  attemptCount: t.Number({ minimum: 0 }),
+  attemptCount: t.Integer({ minimum: 0 }),
   lastAttemptAt: t.Nullable(t.Date()),
   nextAttemptAt: t.Nullable(t.Date()),
   deliveredAt: t.Nullable(t.Date()),
@@ -53,14 +54,14 @@ const NotificationDelivery = t.Object({
 });
 
 const NotificationReadAllResponse = t.Object({
-  count: t.Number({ minimum: 0 }),
+  count: t.Integer({ minimum: 0 }),
 });
 
 const PushToken = t.Object({
   id: uuid,
-  provider: pushProviderSchema,
+  provider: pushProviderRef,
   token: t.String(),
-  platform: devicePlatformSchema,
+  platform: devicePlatformRef,
   deviceId: t.Nullable(t.String()),
   enabled: t.Boolean(),
   lastRegisteredAt: t.Date(),
@@ -71,8 +72,8 @@ const PushToken = t.Object({
 
 const PushTokenInsert = t.Object({
   token: t.String({ minLength: 1 }),
-  platform: devicePlatformSchema,
-  deviceId: t.Optional(t.Nullable(t.String())),
+  platform: devicePlatformRef,
+  deviceId: t.Optional(t.String()),
 });
 
 const NotificationSocketMessage = t.Union([
@@ -91,7 +92,7 @@ const NotificationSocketMessage = t.Union([
 const NotificationSocketEvent = t.Union([
   t.Object({
     type: t.Literal("connected"),
-    unreadCount: t.Number({ minimum: 0 }),
+    unreadCount: t.Integer({ minimum: 0 }),
   }),
   t.Object({
     type: t.Literal("notification"),
@@ -99,7 +100,7 @@ const NotificationSocketEvent = t.Union([
   }),
   t.Object({
     type: t.Literal("unread_count"),
-    count: t.Number({ minimum: 0 }),
+    count: t.Integer({ minimum: 0 }),
   }),
   t.Object({
     type: t.Literal("notification_read"),
@@ -107,7 +108,7 @@ const NotificationSocketEvent = t.Union([
   }),
   t.Object({
     type: t.Literal("notifications_read"),
-    count: t.Number({ minimum: 0 }),
+    count: t.Integer({ minimum: 0 }),
   }),
   t.Object({
     type: t.Literal("pong"),
@@ -121,7 +122,7 @@ export type NotificationSocketEvent = typeof NotificationSocketEvent.static;
 export type NotificationSocketMessage = typeof NotificationSocketMessage.static;
 export type PushToken = typeof PushToken.static;
 
-export const notificationModel = new Elysia({ name: "notification-model" }).model({
+export const notificationModel = new Elysia({ name: "notification-model" }).use(enumModel).model({
   Notification,
   NotificationDelivery,
   NotificationListResponse,

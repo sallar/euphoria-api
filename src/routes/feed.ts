@@ -6,7 +6,7 @@ import { profile, profileReaction, profileUser } from "@/db/profile-schema";
 import { db } from "@/lib/db";
 import { findOwnedProfile, findPublicProfilePhotos } from "@/lib/profile-queries";
 import { commonModel } from "@/models/common";
-import { profileTypeSchema } from "@/models/enums";
+import { profileTypeRef } from "@/models/enums";
 import { type ProfileFeedItem, profileModel } from "@/models/profile";
 import { ref } from "@/models/utils";
 import { auth } from "@/plugins/auth";
@@ -167,12 +167,16 @@ export const feedRoutes = new Elysia({ prefix: "/api/profile", tags: ["Feed"] })
         maxAge: t.Numeric({ minimum: 18, maximum: 120, multipleOf: 1 }),
         cursor: t.Optional(t.Numeric({ minimum: 0 })),
         limit: t.Optional(t.Numeric({ minimum: 1, maximum: maxPageSize, multipleOf: 1 })),
-        profileType: t.Optional(profileTypeSchema),
+        profileType: t.Optional(profileTypeRef),
       }),
       response: {
         200: ref("ProfileFeedResponse"),
-        400: "MessageResponse",
-        404: "MessageResponse",
+        400: "ApiErrorResponse",
+        404: "ApiErrorResponse",
+      },
+      detail: {
+        operationId: "listProfileFeed",
+        security: [{ bearerAuth: [] }],
       },
     },
   );

@@ -35,6 +35,10 @@ export const profileRoutes = new Elysia({ prefix: "/api/profile", tags: ["Profil
       response: {
         200: t.Array(ref("Profile")),
       },
+      detail: {
+        operationId: "listOwnedProfiles",
+        security: [{ bearerAuth: [] }],
+      },
     },
   )
   .post(
@@ -78,16 +82,21 @@ export const profileRoutes = new Elysia({ prefix: "/api/profile", tags: ["Profil
     },
     {
       auth: true,
+      parse: "json",
       body: "ProfileInsert",
       response: {
         201: "Profile",
-        409: "MessageResponse",
-        500: "MessageResponse",
+        409: "ApiErrorResponse",
+        500: "ApiErrorResponse",
+      },
+      detail: {
+        operationId: "createProfile",
+        security: [{ bearerAuth: [] }],
       },
     },
   )
-  .put(
-    ":id",
+  .patch(
+    "/:id",
     async ({ body, params, status, user }) => {
       if (Object.keys(body).length === 0)
         return status(400, { message: "No profile fields provided" });
@@ -107,17 +116,22 @@ export const profileRoutes = new Elysia({ prefix: "/api/profile", tags: ["Profil
     },
     {
       auth: true,
+      parse: "json",
       params: t.Object({ id: t.String({ format: "uuid" }) }),
       body: "ProfileUpdate",
       response: {
         200: "Profile",
-        400: "MessageResponse",
-        404: "MessageResponse",
+        400: "ApiErrorResponse",
+        404: "ApiErrorResponse",
+      },
+      detail: {
+        operationId: "updateProfile",
+        security: [{ bearerAuth: [] }],
       },
     },
   )
   .post(
-    ":id/likes/:targetProfileId",
+    "/:id/likes/:targetProfileId",
     async ({ params, status, user }) => {
       if (params.id === params.targetProfileId)
         return status(400, { message: "Profiles cannot like themselves" });
@@ -144,13 +158,17 @@ export const profileRoutes = new Elysia({ prefix: "/api/profile", tags: ["Profil
       }),
       response: {
         200: "ProfileReactionStatus",
-        400: "MessageResponse",
-        404: "MessageResponse",
+        400: "ApiErrorResponse",
+        404: "ApiErrorResponse",
+      },
+      detail: {
+        operationId: "likeProfile",
+        security: [{ bearerAuth: [] }],
       },
     },
   )
   .post(
-    ":id/unlikes/:targetProfileId",
+    "/:id/unlikes/:targetProfileId",
     async ({ params, status, user }) => {
       if (params.id === params.targetProfileId)
         return status(400, { message: "Profiles cannot unlike themselves" });
@@ -177,8 +195,12 @@ export const profileRoutes = new Elysia({ prefix: "/api/profile", tags: ["Profil
       }),
       response: {
         200: "ProfileReactionStatus",
-        400: "MessageResponse",
-        404: "MessageResponse",
+        400: "ApiErrorResponse",
+        404: "ApiErrorResponse",
+      },
+      detail: {
+        operationId: "unlikeProfile",
+        security: [{ bearerAuth: [] }],
       },
     },
   );
