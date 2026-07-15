@@ -1,6 +1,6 @@
 import cors from "@elysia/cors";
 import { openapi } from "@elysia/openapi";
-import { Elysia } from "elysia";
+import { Elysia, type ErrorHandler } from "elysia";
 
 import {
   createMobileOpenApiDocument,
@@ -14,7 +14,18 @@ import { mobileAuthRoutes } from "@/routes/mobile-auth";
 import { notificationRoutes } from "@/routes/notifications";
 import { profileRoutes } from "@/routes/profile";
 
+export const jsonErrorFallback: ErrorHandler = ({ code, error, status }) => {
+  if (code !== "INTERNAL_SERVER_ERROR" && code !== "UNKNOWN" && code !== 500) return;
+
+  console.error("Unhandled request error:", error);
+  return status(500, {
+    code: "internal_server_error",
+    message: "An unexpected server error occurred",
+  });
+};
+
 export const application = new Elysia()
+  .onError(jsonErrorFallback)
   .use(cors())
   .use(
     openapi({

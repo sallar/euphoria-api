@@ -1,8 +1,7 @@
 import Elysia, { t } from "elysia";
 
 import { commonModel } from "@/models/common";
-import { notificationModel } from "@/models/notification";
-import { ref } from "@/models/utils";
+import { notificationModel, PushToken } from "@/models/notification";
 import { auth } from "@/plugins/auth";
 import {
   archiveNotification,
@@ -157,7 +156,7 @@ export const notificationRoutes = new Elysia({
   .get("/push-tokens", async ({ user }) => listPushTokens(user.id), {
     auth: true,
     response: {
-      200: t.Array(ref("PushToken")),
+      200: t.Array(PushToken),
     },
     detail: {
       operationId: "listPushTokens",

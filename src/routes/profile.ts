@@ -6,7 +6,6 @@ import { db } from "@/lib/db";
 import { findActiveProfile, findOwnedProfile } from "@/lib/profile-queries";
 import { commonModel } from "@/models/common";
 import { Profile, profileModel, profileSelectColumns } from "@/models/profile";
-import { ref } from "@/models/utils";
 import { auth } from "@/plugins/auth";
 import { setProfileReactionAndSyncConversation } from "@/services/chat-service";
 
@@ -28,12 +27,12 @@ export const profileRoutes = new Elysia({ prefix: "/api/profile", tags: ["Profil
 
       if (!profiles.length) return [];
 
-      return status(200, profiles);
+      return status(200, profiles as Profile[]);
     },
     {
       auth: true,
       response: {
-        200: t.Array(ref("Profile")),
+        200: t.Array(Profile),
       },
       detail: {
         operationId: "listOwnedProfiles",

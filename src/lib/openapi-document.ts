@@ -2,6 +2,8 @@ import type { AnyElysia } from "elysia";
 
 import { toOpenAPISchema } from "@elysia/openapi";
 
+import { namedEnumSchemas } from "@/models/enums";
+
 type OpenApiObject = Record<string, unknown>;
 
 const httpMethods = new Set(["delete", "get", "head", "options", "patch", "post", "put", "trace"]);
@@ -32,6 +34,8 @@ export function createOpenApiDocument(app: AnyElysia): OpenApiObject {
     ...schema,
   }) as OpenApiObject;
 
+  addNamedEnumComponents(document);
+  deduplicateComponentSchemas(document);
   addBearerSecurityScheme(document);
   addStandardApplicationErrors(document);
 
@@ -151,6 +155,82 @@ export function pruneUnreachableComponents(document: OpenApiObject): OpenApiObje
     ...document,
     components: prunedComponents,
   };
+}
+
+function addNamedEnumComponents(document: OpenApiObject) {
+  const components = asRecord(document.components);
+  const schemas = asRecord(components.schemas);
+
+  for (const [name, schema] of Object.entries(namedEnumSchemas)) {
+    schemas[name] = {
+      type: "string",
+      enum: getStringEnumValues(schema),
+    };
+  }
+
+  components.schemas = schemas;
+  document.components = components;
+}
+
+function deduplicateComponentSchemas(document: OpenApiObject) {
+  const components = asRecord(document.components);
+  const schemas = asRecord(components.schemas);
+  const componentByFingerprint = new Map<string, string>();
+
+  for (const [name, schema] of Object.entries(schemas)) {
+    componentByFingerprint.set(schemaFingerprint(schema), name);
+  }
+  for (const [name, schema] of Object.entries(namedEnumSchemas)) {
+    componentByFingerprint.set(schemaFingerprint(normalizeOpenApiValue(schema)), name);
+  }
+
+  const replaceDuplicate = (value: unknown, isComponentRoot = false): unknown => {
+    if (Array.isArray(value)) return value.map((child) => replaceDuplicate(child));
+    if (!isRecord(value)) return value;
+
+    if (!isComponentRoot) {
+      const componentName = componentByFingerprint.get(schemaFingerprint(value));
+      if (componentName) return schemaReference(componentName);
+    }
+
+    return Object.fromEntries(
+      Object.entries(value).map(([key, child]) => [key, replaceDuplicate(child)]),
+    );
+  };
+
+  components.schemas = Object.fromEntries(
+    Object.entries(schemas).map(([name, schema]) => [name, replaceDuplicate(schema, true)]),
+  );
+  document.paths = replaceDuplicate(document.paths) as OpenApiObject;
+  document.components = components;
+}
+
+function getStringEnumValues(schema: OpenApiObject): string[] {
+  if (typeof schema.const === "string") return [schema.const];
+
+  if (Array.isArray(schema.enum) && schema.enum.every((value) => typeof value === "string")) {
+    return schema.enum;
+  }
+
+  if (Array.isArray(schema.anyOf)) {
+    const values = schema.anyOf.map((candidate) =>
+      isRecord(candidate) && typeof candidate.const === "string" ? candidate.const : undefined,
+    );
+    if (values.every((value) => value !== undefined)) return values as string[];
+  }
+
+  throw new Error("Named enum schema does not contain string enum values");
+}
+
+function schemaFingerprint(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(schemaFingerprint).join(",")}]`;
+  if (!isRecord(value)) return JSON.stringify(value);
+
+  return `{${Object.keys(value)
+    .filter((key) => value[key] !== undefined)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${schemaFingerprint(value[key])}`)
+    .join(",")}}`;
 }
 
 function addBearerSecurityScheme(document: OpenApiObject) {

@@ -1,7 +1,6 @@
 import Elysia, { t } from "elysia";
 
-import { chatMessageTypeRef, enumModel, profileTypeRef } from "./enums";
-import { ref } from "./utils";
+import { chatMessageTypeSchema, profileTypeSchema } from "./enums";
 
 const uuid = t.String({ format: "uuid" });
 const messageText = t.String({ minLength: 1, maxLength: 4000 });
@@ -10,7 +9,7 @@ const reactionEmoji = t.String({ minLength: 1, maxLength: 64 });
 const ChatProfileSummary = t.Object({
   id: uuid,
   name: t.String(),
-  profileType: profileTypeRef,
+  profileType: profileTypeSchema,
 });
 
 const ChatMessageAttachment = t.Object({
@@ -29,7 +28,7 @@ const ChatMessageReactionCount = t.Object({
 const ChatConversationLastMessage = t.Object({
   id: uuid,
   senderProfileId: t.Nullable(uuid),
-  messageType: chatMessageTypeRef,
+  messageType: chatMessageTypeSchema,
   content: t.Nullable(t.String()),
   createdAt: t.Date(),
 });
@@ -46,15 +45,15 @@ const ChatMessage = t.Object({
   id: uuid,
   conversationId: uuid,
   senderProfileId: t.Nullable(uuid),
-  messageType: chatMessageTypeRef,
+  messageType: chatMessageTypeSchema,
   content: t.Nullable(t.String()),
-  attachments: t.Array(ref("ChatMessageAttachment")),
+  attachments: t.Array(ChatMessageAttachment),
   replyToMessageId: t.Nullable(uuid),
   editedAt: t.Nullable(t.Date()),
   deletedAt: t.Nullable(t.Date()),
   createdAt: t.Date(),
   updatedAt: t.Date(),
-  reactionCounts: t.Array(ref("ChatMessageReactionCount")),
+  reactionCounts: t.Array(ChatMessageReactionCount),
   viewerReactions: t.Array(reactionEmoji),
 });
 
@@ -63,22 +62,22 @@ const ChatConversation = t.Object({
   profileOneId: uuid,
   profileTwoId: uuid,
   matchedProfileId: uuid,
-  matchedProfile: ref("ChatProfileSummary"),
+  matchedProfile: ChatProfileSummary,
   isMatched: t.Boolean(),
   lastMessageAt: t.Nullable(t.Date()),
-  lastMessage: t.Optional(ref("ChatConversationLastMessage")),
-  readState: ref("ChatConversationReadState"),
+  lastMessage: t.Optional(ChatConversationLastMessage),
+  readState: ChatConversationReadState,
   createdAt: t.Date(),
   updatedAt: t.Date(),
 });
 
 const ChatConversationListResponse = t.Object({
-  data: t.Array(ref("ChatConversation")),
+  data: t.Array(ChatConversation),
   cursor: t.Nullable(t.String({ format: "date-time" })),
 });
 
 const ChatMessageListResponse = t.Object({
-  data: t.Array(ref("ChatMessage")),
+  data: t.Array(ChatMessage),
   cursor: t.Nullable(t.String({ format: "date-time" })),
 });
 
@@ -214,7 +213,7 @@ export type ChatSocketEvent =
       type: "pong";
     };
 
-export const chatModel = new Elysia({ name: "chat-model" }).use(enumModel).model({
+export const chatModel = new Elysia({ name: "chat-model" }).model({
   ChatConversation,
   ChatConversationLastMessage,
   ChatConversationReadState,

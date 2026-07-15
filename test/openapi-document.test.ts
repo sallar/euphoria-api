@@ -1,7 +1,8 @@
 import SwaggerParser from "@apidevtools/swagger-parser";
 import { describe, expect, spyOn, test } from "bun:test";
+import Elysia from "elysia";
 
-import { application } from "@/app";
+import { application, jsonErrorFallback } from "@/app";
 import {
   createMobileOpenApiDocument,
   createOpenApiDocument,
@@ -14,6 +15,19 @@ type JsonObject = Record<string, any>;
 const applicationDocument = createOpenApiDocument(application) as JsonObject;
 const mobileDocument = createMobileOpenApiDocument(application) as JsonObject;
 const methods = ["delete", "get", "head", "options", "patch", "post", "put", "trace"];
+const testUuid = "00000000-0000-4000-8000-000000000000";
+const validProfileInsert = {
+  name: "Runtime Validator Test",
+  profileType: "solo",
+  gender: "man",
+  genderInterests: ["woman"],
+  orientation: "heterosexual",
+  orientationInterests: ["heterosexual"],
+  relationshipTypes: ["dating"],
+  location: { x: 24.94, y: 60.17 },
+  dateOfBirth: "1990-01-01",
+  country: "FI",
+};
 
 describe("OpenAPI value normalization", () => {
   test.each([
@@ -259,6 +273,97 @@ describe("application DTO contract", () => {
       expect(schema.properties.profileType.$ref).toBe("#/components/schemas/ProfileType");
       expect(schema.properties.gender.$ref).toBe("#/components/schemas/ProfilePrimaryGender");
       expect(schema.properties.orientation.$ref).toBe("#/components/schemas/ProfileOrientation");
+      expect(schema.properties.genderInterests.items.$ref).toBe(
+        "#/components/schemas/ProfileGender",
+      );
+      expect(schema.properties.orientationInterests.items.$ref).toBe(
+        "#/components/schemas/ProfileOrientation",
+      );
+      expect(schema.properties.relationshipTypes.items.$ref).toBe(
+        "#/components/schemas/ProfileRelationshipType",
+      );
+    }
+
+    expect(
+      applicationDocument.components.schemas.ProfileReactionStatus.properties.reaction.$ref,
+    ).toBe("#/components/schemas/ProfileReactionType");
+    expect(applicationDocument.components.schemas.ChatMessage.properties.messageType.$ref).toBe(
+      "#/components/schemas/ChatMessageType",
+    );
+    expect(applicationDocument.components.schemas.Notification.properties.type.$ref).toBe(
+      "#/components/schemas/NotificationType",
+    );
+    expect(applicationDocument.components.schemas.PushToken.properties.platform.$ref).toBe(
+      "#/components/schemas/DevicePlatform",
+    );
+    expect(applicationDocument.components.schemas.PushToken.properties.provider.$ref).toBe(
+      "#/components/schemas/PushProvider",
+    );
+  });
+});
+
+describe("application runtime validation", () => {
+  test.each([
+    [
+      "POST /api/profile/",
+      new Request("http://localhost/api/profile/", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(validProfileInsert),
+      }),
+    ],
+    [
+      "PATCH /api/profile/{id}",
+      new Request(`http://localhost/api/profile/${testUuid}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ bio: "" }),
+      }),
+    ],
+    [
+      "GET /api/profile/{profileId}/feed",
+      new Request(`http://localhost/api/profile/${testUuid}/feed?radius=10&minAge=18&maxAge=30`),
+    ],
+    [
+      "POST /api/notifications/push-tokens",
+      new Request("http://localhost/api/notifications/push-tokens", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: "test-push-token", platform: "ios" }),
+      }),
+    ],
+  ])("compiles concrete validators for %s", async (_operation, request) => {
+    const response = await application.handle(request);
+    const body = await response.text();
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get("content-type")).toContain("application/json");
+    expect(response.headers.get("content-type")).not.toContain("text/html");
+    expect(body).not.toContain("Unable to dereference schema");
+  });
+
+  test("contains no OpenAPI component references in registered runtime models", () => {
+    const runtimeModels = (application as any).definitions.type;
+    expect(findOpenApiComponentReferences(runtimeModels)).toEqual([]);
+  });
+
+  test("returns a production-safe JSON response for unexpected failures", async () => {
+    const errorLog = spyOn(console, "error").mockImplementation(() => {});
+    const failingApplication = new Elysia().onError(jsonErrorFallback).get("/failure", () => {
+      throw new Error("sensitive diagnostic details");
+    });
+
+    try {
+      const response = await failingApplication.handle(new Request("http://localhost/failure"));
+
+      expect(response.status).toBe(500);
+      expect(response.headers.get("content-type")).toContain("application/json");
+      expect(await response.json()).toEqual({
+        code: "internal_server_error",
+        message: "An unexpected server error occurred",
+      });
+    } finally {
+      errorLog.mockRestore();
     }
   });
 });
@@ -429,6 +534,23 @@ function mobileAuthRequest(path: "/session" | "/sign-out", method: "GET" | "POST
   if (token) headers.set("authorization", `Bearer ${token}`);
 
   return new Request(`http://localhost/api/mobile/auth${path}`, { method, headers });
+}
+
+function findOpenApiComponentReferences(value: unknown, path = "$"): string[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((child, index) =>
+      findOpenApiComponentReferences(child, `${path}[${index}]`),
+    );
+  }
+  if (!isObject(value)) return [];
+
+  const references =
+    typeof value.$ref === "string" && value.$ref.startsWith("#/components/") ? [path] : [];
+  return references.concat(
+    Object.entries(value).flatMap(([key, child]) =>
+      findOpenApiComponentReferences(child, `${path}.${key}`),
+    ),
+  );
 }
 
 function getOperations(document: JsonObject) {
