@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -29,7 +30,8 @@ export const notificationDeliveryStatusValues = [
   "failed",
   "skipped",
 ] as const;
-export const pushProviderValues = ["expo"] as const;
+export const pushProviderValues = ["expo", "apns"] as const;
+export const apnsEnvironmentValues = ["development", "production"] as const;
 export const devicePlatformValues = ["ios", "android", "web"] as const;
 
 export const notificationTypeEnum = pgEnum("notification_type", notificationTypeValues);
@@ -39,6 +41,7 @@ export const notificationDeliveryStatusEnum = pgEnum(
   notificationDeliveryStatusValues,
 );
 export const pushProviderEnum = pgEnum("push_provider", pushProviderValues);
+export const apnsEnvironmentEnum = pgEnum("apns_environment", apnsEnvironmentValues);
 export const devicePlatformEnum = pgEnum("device_platform", devicePlatformValues);
 
 export const notification = pgTable(
@@ -91,6 +94,7 @@ export const userPushToken = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     provider: pushProviderEnum("provider").default("expo").notNull(),
+    apnsEnvironment: apnsEnvironmentEnum("apns_environment"),
     token: text("token").notNull(),
     platform: devicePlatformEnum("platform").notNull(),
     deviceId: text("device_id"),
@@ -107,7 +111,18 @@ export const userPushToken = pgTable(
   },
   (table) => [
     uniqueIndex("user_push_token_provider_token_unique_idx").on(table.provider, table.token),
+    uniqueIndex("user_push_token_apns_installation_unique_idx")
+      .on(table.provider, table.apnsEnvironment, table.deviceId)
+      .where(sql`${table.apnsEnvironment} is not null and ${table.enabled} = true`),
     index("user_push_token_user_enabled_idx").on(table.userId, table.enabled),
+    check(
+      "user_push_token_provider_environment_check",
+      sql`(${table.provider}::text = 'expo' and ${table.apnsEnvironment} is null) or (${table.provider}::text = 'apns' and ${table.apnsEnvironment} is not null)`,
+    ),
+    check(
+      "user_push_token_apns_registration_check",
+      sql`${table.provider}::text <> 'apns' or (${table.platform}::text = 'ios' and nullif(btrim(${table.deviceId}), '') is not null and ${table.token} ~ '^([0-9A-Fa-f]{2})+$')`,
+    ),
   ],
 );
 
@@ -124,6 +139,7 @@ export const notificationDelivery = pgTable(
     channel: notificationChannelEnum("channel").notNull(),
     status: notificationDeliveryStatusEnum("status").default("pending").notNull(),
     provider: pushProviderEnum("provider"),
+    apnsEnvironment: apnsEnvironmentEnum("apns_environment"),
     pushTokenId: uuid("push_token_id").references(() => userPushToken.id, {
       onDelete: "set null",
     }),
@@ -133,6 +149,7 @@ export const notificationDelivery = pgTable(
     deliveredAt: timestamp("delivered_at", { withTimezone: true }),
     failedAt: timestamp("failed_at", { withTimezone: true }),
     error: text("error"),
+    providerMetadata: jsonb("provider_metadata").$type<Record<string, string | number | null>>(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
@@ -152,5 +169,9 @@ export const notificationDelivery = pgTable(
       table.createdAt,
     ),
     index("notification_delivery_push_token_id_idx").on(table.pushTokenId),
+    check(
+      "notification_delivery_provider_environment_check",
+      sql`(${table.provider} is null and ${table.apnsEnvironment} is null) or (${table.provider}::text = 'expo' and ${table.apnsEnvironment} is null) or (${table.provider}::text = 'apns' and ${table.apnsEnvironment} is not null)`,
+    ),
   ],
 );

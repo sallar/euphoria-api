@@ -15,6 +15,7 @@ import {
   registerPushToken,
 } from "@/services/notification-service";
 import { notificationSockets } from "@/services/notification-sockets";
+import { PushTokenRegistrationError } from "@/services/push-token-registration";
 import { sendRandomTestNotification } from "@/services/test-notification-service";
 
 export const notificationRoutes = new Elysia({
@@ -167,14 +168,23 @@ export const notificationRoutes = new Elysia({
   .post(
     "/push-tokens",
     async ({ body, status, user }) => {
-      const token = await registerPushToken({
-        userId: user.id,
-        token: body.token,
-        platform: body.platform,
-        deviceId: body.deviceId,
-      });
+      try {
+        const token = await registerPushToken({
+          userId: user.id,
+          provider: body.provider,
+          apnsEnvironment: "apnsEnvironment" in body ? body.apnsEnvironment : undefined,
+          token: body.token,
+          platform: body.platform,
+          deviceId: body.deviceId,
+        });
 
-      return status(201, token);
+        return status(201, token);
+      } catch (error) {
+        if (error instanceof PushTokenRegistrationError) {
+          return status(400, { code: "invalid_push_token", message: error.message });
+        }
+        throw error;
+      }
     },
     {
       auth: true,
@@ -182,6 +192,7 @@ export const notificationRoutes = new Elysia({
       body: "PushTokenInsert",
       response: {
         201: "PushToken",
+        400: "ApiErrorResponse",
       },
       detail: {
         operationId: "registerPushToken",

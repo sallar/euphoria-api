@@ -271,7 +271,6 @@ describe("application DTO contract", () => {
       ["ProfileUpdate", "bio"],
       ["ChatMessageInsert", "replyToMessageId"],
       ["ChatConversationReadUpdate", "messageId"],
-      ["PushTokenInsert", "deviceId"],
     ];
 
     for (const [schemaName, propertyName] of fields) {
@@ -333,6 +332,38 @@ describe("application DTO contract", () => {
     expect(applicationDocument.components.schemas.PushToken.properties.provider.$ref).toBe(
       "#/components/schemas/PushProvider",
     );
+    expect(applicationDocument.components.schemas.PushToken.properties.apnsEnvironment).toEqual({
+      $ref: "#/components/schemas/ApnsEnvironment",
+      type: ["string", "null"],
+    });
+  });
+
+  test("publishes the provider-specific push registration contract", () => {
+    const pushToken = applicationDocument.components.schemas.PushToken;
+    const pushTokenInsert = applicationDocument.components.schemas.PushTokenInsert;
+    const [expoRegistration, apnsRegistration] = pushTokenInsert.anyOf;
+
+    expect(applicationDocument.components.schemas.PushProvider.enum).toEqual(["expo", "apns"]);
+    expect(applicationDocument.components.schemas.ApnsEnvironment.enum).toEqual([
+      "development",
+      "production",
+    ]);
+    expect(pushToken.properties.token).toBeUndefined();
+    expect(expoRegistration.required).not.toContain("provider");
+    expect(expoRegistration.required).not.toContain("deviceId");
+    expect(expoRegistration.properties.provider.const).toBe("expo");
+    expect(apnsRegistration.required).toEqual([
+      "provider",
+      "apnsEnvironment",
+      "token",
+      "platform",
+      "deviceId",
+    ]);
+    expect(apnsRegistration.properties.provider.const).toBe("apns");
+    expect(apnsRegistration.properties.apnsEnvironment.$ref).toBe(
+      "#/components/schemas/ApnsEnvironment",
+    );
+    expect(apnsRegistration.properties.platform.const).toBe("ios");
   });
 });
 

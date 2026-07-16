@@ -1,8 +1,6 @@
 import type { SQL } from "drizzle-orm";
-import type { ExpoPushMessage, ExpoPushTicket } from "expo-server-sdk";
 
-import { and, desc, eq, isNull, lt, sql } from "drizzle-orm";
-import { Expo } from "expo-server-sdk";
+import { and, desc, eq, isNull, lt, ne, sql } from "drizzle-orm";
 
 import type { Notification, PushToken } from "@/models/notification";
 
@@ -15,19 +13,24 @@ import {
 } from "@/db/notification-schema";
 import { db } from "@/lib/db";
 
+import type { PushDeliveryAttempt, PushDeliveryTarget, PushProviderRegistry } from "./push/types";
+
 import { notificationSockets } from "./notification-sockets";
+import {
+  type NormalizedPushTokenRegistration,
+  type PushTokenRegistrationRepository,
+  registerPushTokenWithRepository,
+  type PushTokenRegistrationInput,
+} from "./push-token-registration";
+import { ApnsProviderClient } from "./push/apns-provider";
+import { dispatchPushNotifications } from "./push/dispatcher";
+import { ExpoPushProvider } from "./push/expo-provider";
 
 export type NotificationType = (typeof notificationTypeValues)[number];
 export type NotificationChannel = (typeof notificationChannelValues)[number];
 
 type NotificationRow = typeof notification.$inferSelect;
 type PushTokenRow = typeof userPushToken.$inferSelect;
-
-type PushDeliveryTarget = {
-  deliveryId: string;
-  pushTokenId: string;
-  token: string;
-};
 
 type CreateNotificationInput = {
   recipientUserId: string;
@@ -43,7 +46,10 @@ type CreateNotificationInput = {
 const defaultNotificationChannels: NotificationChannel[] = ["in_app", "push"];
 const defaultNotificationLimit = 20;
 const maxNotificationLimit = 100;
-let expoClient: Expo | undefined;
+const pushProviders: PushProviderRegistry = {
+  expo: new ExpoPushProvider(),
+  apns: new ApnsProviderClient(),
+};
 
 const notificationFields = {
   id: notification.id,
@@ -62,7 +68,7 @@ const notificationFields = {
 const pushTokenFields = {
   id: userPushToken.id,
   provider: userPushToken.provider,
-  token: userPushToken.token,
+  apnsEnvironment: userPushToken.apnsEnvironment,
   platform: userPushToken.platform,
   deviceId: userPushToken.deviceId,
   enabled: userPushToken.enabled,
@@ -81,144 +87,56 @@ const toNotification = (
 
 const toPushToken = (row: Pick<PushTokenRow, keyof typeof pushTokenFields>): PushToken => row;
 
-const getExpoClient = () => {
-  const accessToken = process.env.EXPO_ACCESS_TOKEN?.trim();
-  expoClient ??= new Expo(accessToken ? { accessToken } : undefined);
-  return expoClient;
-};
-
-const formatPushError = (error: unknown) => {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  return "Unknown Expo push notification error";
-};
-
-const markPushDeliveryDelivered = async ({ deliveryId }: PushDeliveryTarget) => {
+const recordPushDeliveryAttempt = async (attempt: PushDeliveryAttempt) => {
   const now = new Date();
+  const state =
+    attempt.outcome === "accepted"
+      ? {
+          status: "delivered" as const,
+          deliveredAt: now,
+          failedAt: null,
+          nextAttemptAt: null,
+          error: null,
+        }
+      : attempt.outcome === "retryable"
+        ? {
+            status: "pending" as const,
+            deliveredAt: null,
+            failedAt: null,
+            nextAttemptAt: attempt.retryAt,
+            error: attempt.error,
+          }
+        : {
+            status: "failed" as const,
+            deliveredAt: null,
+            failedAt: now,
+            nextAttemptAt: null,
+            error: attempt.error,
+          };
 
-  await db
-    .update(notificationDelivery)
-    .set({
-      status: "delivered",
-      attemptCount: sql`${notificationDelivery.attemptCount} + 1`,
-      lastAttemptAt: now,
-      deliveredAt: now,
-      failedAt: null,
-      error: null,
-      updatedAt: now,
-    })
-    .where(eq(notificationDelivery.id, deliveryId));
-};
+  await db.transaction(async (tx) => {
+    await tx
+      .update(notificationDelivery)
+      .set({
+        ...state,
+        attemptCount: sql`${notificationDelivery.attemptCount} + 1`,
+        lastAttemptAt: now,
+        providerMetadata: attempt.metadata,
+        updatedAt: now,
+      })
+      .where(eq(notificationDelivery.id, attempt.target.deliveryId));
 
-const markPushDeliveryFailed = async (
-  { deliveryId, pushTokenId }: PushDeliveryTarget,
-  error: string,
-  disablePushToken: boolean,
-) => {
-  const now = new Date();
+    if (!attempt.disableToken) return;
 
-  await db
-    .update(notificationDelivery)
-    .set({
-      status: "failed",
-      attemptCount: sql`${notificationDelivery.attemptCount} + 1`,
-      lastAttemptAt: now,
-      deliveredAt: null,
-      failedAt: now,
-      error,
-      updatedAt: now,
-    })
-    .where(eq(notificationDelivery.id, deliveryId));
-
-  if (disablePushToken) {
-    await db
+    await tx
       .update(userPushToken)
       .set({
         enabled: false,
         disabledAt: now,
         updatedAt: now,
       })
-      .where(eq(userPushToken.id, pushTokenId));
-  }
-};
-
-const applyExpoPushTicket = async (
-  delivery: PushDeliveryTarget,
-  ticket: ExpoPushTicket | undefined,
-) => {
-  if (!ticket)
-    return markPushDeliveryFailed(
-      delivery,
-      "Expo did not return a push ticket for this notification",
-      false,
-    );
-
-  if (ticket.status === "ok") return markPushDeliveryDelivered(delivery);
-
-  const errorCode = ticket.details?.error;
-  const error = [errorCode, ticket.message].filter(Boolean).join(": ");
-
-  return markPushDeliveryFailed(
-    delivery,
-    error || "Expo returned an error for this push notification",
-    errorCode === "DeviceNotRegistered",
-  );
-};
-
-const toExpoPushMessage = (
-  createdNotification: Notification,
-  delivery: PushDeliveryTarget,
-): ExpoPushMessage => ({
-  to: delivery.token,
-  title: createdNotification.title,
-  body: createdNotification.body,
-  sound: "default",
-  data: createdNotification,
-});
-
-const sendExpoPushNotifications = async (
-  createdNotification: Notification,
-  deliveries: PushDeliveryTarget[],
-) => {
-  if (!deliveries.length) return;
-
-  const expo = getExpoClient();
-  const deliverableMessages: { delivery: PushDeliveryTarget; message: ExpoPushMessage }[] = [];
-
-  for (const delivery of deliveries) {
-    if (!Expo.isExpoPushToken(delivery.token)) {
-      await markPushDeliveryFailed(delivery, "Invalid Expo push token format", true);
-      continue;
-    }
-
-    deliverableMessages.push({
-      delivery,
-      message: toExpoPushMessage(createdNotification, delivery),
-    });
-  }
-
-  let chunkStart = 0;
-  const messages = deliverableMessages.map(({ message }) => message);
-  for (const chunk of expo.chunkPushNotifications(messages)) {
-    const chunkDeliveries = deliverableMessages
-      .slice(chunkStart, chunkStart + chunk.length)
-      .map(({ delivery }) => delivery);
-    chunkStart += chunk.length;
-
-    try {
-      const tickets = await expo.sendPushNotificationsAsync(chunk);
-      await Promise.all(
-        chunkDeliveries.map((delivery, index) => applyExpoPushTicket(delivery, tickets[index])),
-      );
-    } catch (error) {
-      console.error("Failed to send Expo push notification chunk:", error);
-      const errorMessage = formatPushError(error);
-
-      await Promise.all(
-        chunkDeliveries.map((delivery) => markPushDeliveryFailed(delivery, errorMessage, false)),
-      );
-    }
-  }
+      .where(eq(userPushToken.id, attempt.target.pushTokenId));
+  });
 };
 
 export const normalizeNotificationLimit = (limit: number | undefined) =>
@@ -383,27 +301,26 @@ export const createNotification = async (input: CreateNotificationInput) => {
         const tokens = await tx
           .select({
             id: userPushToken.id,
+            provider: userPushToken.provider,
+            apnsEnvironment: userPushToken.apnsEnvironment,
             token: userPushToken.token,
           })
           .from(userPushToken)
           .where(
-            and(
-              eq(userPushToken.userId, input.recipientUserId),
-              eq(userPushToken.provider, "expo"),
-              eq(userPushToken.enabled, true),
-            ),
+            and(eq(userPushToken.userId, input.recipientUserId), eq(userPushToken.enabled, true)),
           );
 
         if (tokens.length) {
           const deliveries = await tx
             .insert(notificationDelivery)
             .values(
-              tokens.map(({ id }) => ({
+              tokens.map(({ id, provider, apnsEnvironment }) => ({
                 notificationId: created.id,
                 recipientUserId: input.recipientUserId,
                 channel: "push" as const,
                 status: "pending" as const,
-                provider: "expo" as const,
+                provider,
+                apnsEnvironment,
                 pushTokenId: id,
               })),
             )
@@ -412,17 +329,19 @@ export const createNotification = async (input: CreateNotificationInput) => {
               pushTokenId: notificationDelivery.pushTokenId,
             });
 
-          const tokenById = new Map(tokens.map(({ id, token }) => [id, token]));
+          const tokenById = new Map(tokens.map((token) => [token.id, token]));
           for (const delivery of deliveries) {
             if (!delivery.pushTokenId) continue;
 
-            const token = tokenById.get(delivery.pushTokenId);
-            if (!token) continue;
+            const pushToken = tokenById.get(delivery.pushTokenId);
+            if (!pushToken) continue;
 
             pushDeliveries.push({
               deliveryId: delivery.deliveryId,
               pushTokenId: delivery.pushTokenId,
-              token,
+              provider: pushToken.provider,
+              apnsEnvironment: pushToken.apnsEnvironment,
+              token: pushToken.token,
             });
           }
         }
@@ -457,7 +376,12 @@ export const createNotification = async (input: CreateNotificationInput) => {
   }
 
   if (channels.includes("push")) {
-    await sendExpoPushNotifications(createdNotification, pushDeliveries);
+    const attempts = await dispatchPushNotifications(
+      createdNotification,
+      pushDeliveries,
+      pushProviders,
+    );
+    await Promise.all(attempts.map(recordPushDeliveryAttempt));
   }
 
   return createdNotification;
@@ -473,46 +397,67 @@ export const listPushTokens = async (userId: string) => {
   return tokens.map(toPushToken);
 };
 
-export const registerPushToken = async ({
-  deviceId,
-  platform,
-  token,
-  userId,
-}: {
-  deviceId?: string;
-  platform: PushToken["platform"];
-  token: string;
-  userId: string;
-}) => {
-  const now = new Date();
-  const [registeredToken] = await db
-    .insert(userPushToken)
-    .values({
-      userId,
-      provider: "expo",
-      token,
-      platform,
-      deviceId: deviceId ?? null,
-      enabled: true,
-      lastRegisteredAt: now,
-      disabledAt: null,
-    })
-    .onConflictDoUpdate({
-      target: [userPushToken.provider, userPushToken.token],
-      set: {
-        userId,
-        platform,
-        deviceId: deviceId ?? null,
-        enabled: true,
-        disabledAt: null,
-        lastRegisteredAt: now,
-        updatedAt: now,
-      },
-    })
-    .returning(pushTokenFields);
+const pushTokenRegistrationRepository: PushTokenRegistrationRepository = {
+  transaction: (callback) =>
+    db.transaction(async (tx) =>
+      callback({
+        lockApnsInstallation: async (environment, deviceId) => {
+          const lockKey = `apns:${environment}:${deviceId}`;
+          await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
+        },
+        disableRotatedApnsTokens: async (
+          registration: NormalizedPushTokenRegistration,
+          now: Date,
+        ) => {
+          await tx
+            .update(userPushToken)
+            .set({
+              enabled: false,
+              disabledAt: now,
+              updatedAt: now,
+            })
+            .where(
+              and(
+                eq(userPushToken.provider, "apns"),
+                eq(userPushToken.apnsEnvironment, registration.apnsEnvironment!),
+                eq(userPushToken.deviceId, registration.deviceId!),
+                eq(userPushToken.enabled, true),
+                ne(userPushToken.token, registration.token),
+              ),
+            );
+        },
+        upsertPushToken: async (registration, now) => {
+          const [registeredToken] = await tx
+            .insert(userPushToken)
+            .values({
+              ...registration,
+              enabled: true,
+              lastRegisteredAt: now,
+              disabledAt: null,
+            })
+            .onConflictDoUpdate({
+              target: [userPushToken.provider, userPushToken.token],
+              set: {
+                userId: registration.userId,
+                apnsEnvironment: registration.apnsEnvironment,
+                platform: registration.platform,
+                deviceId: registration.deviceId,
+                enabled: true,
+                disabledAt: null,
+                lastRegisteredAt: now,
+                updatedAt: now,
+              },
+            })
+            .returning(pushTokenFields);
 
-  return toPushToken(registeredToken);
+          return toPushToken(registeredToken);
+        },
+      }),
+    ),
 };
+
+export const registerPushToken = async (input: PushTokenRegistrationInput) =>
+  registerPushTokenWithRepository(pushTokenRegistrationRepository, input);
 
 export const disablePushToken = async (userId: string, pushTokenId: string) => {
   const [disabledToken] = await db

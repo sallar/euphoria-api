@@ -1,6 +1,7 @@
 import Elysia, { t } from "elysia";
 
 import {
+  apnsEnvironmentSchema,
   devicePlatformSchema,
   notificationChannelSchema,
   notificationDeliveryStatusSchema,
@@ -47,6 +48,7 @@ const NotificationDelivery = t.Object({
   channel: notificationChannelSchema,
   status: notificationDeliveryStatusSchema,
   provider: t.Nullable(pushProviderSchema),
+  apnsEnvironment: t.Nullable(apnsEnvironmentSchema),
   pushTokenId: t.Nullable(uuid),
   attemptCount: t.Integer({ minimum: 0 }),
   lastAttemptAt: t.Nullable(t.Date()),
@@ -54,6 +56,7 @@ const NotificationDelivery = t.Object({
   deliveredAt: t.Nullable(t.Date()),
   failedAt: t.Nullable(t.Date()),
   error: t.Nullable(t.String()),
+  providerMetadata: t.Nullable(t.Record(t.String(), t.Union([t.String(), t.Number(), t.Null()]))),
   createdAt: t.Date(),
   updatedAt: t.Date(),
 });
@@ -65,7 +68,7 @@ const NotificationReadAllResponse = t.Object({
 export const PushToken = t.Object({
   id: uuid,
   provider: pushProviderSchema,
-  token: t.String(),
+  apnsEnvironment: t.Nullable(apnsEnvironmentSchema),
   platform: devicePlatformSchema,
   deviceId: t.Nullable(t.String()),
   enabled: t.Boolean(),
@@ -75,11 +78,21 @@ export const PushToken = t.Object({
   updatedAt: t.Date(),
 });
 
-const PushTokenInsert = t.Object({
-  token: t.String({ minLength: 1 }),
-  platform: devicePlatformSchema,
-  deviceId: t.Optional(t.String()),
-});
+export const PushTokenInsert = t.Union([
+  t.Object({
+    provider: t.Optional(t.Literal("expo")),
+    token: t.String({ minLength: 1 }),
+    platform: devicePlatformSchema,
+    deviceId: t.Optional(t.String()),
+  }),
+  t.Object({
+    provider: t.Literal("apns"),
+    apnsEnvironment: apnsEnvironmentSchema,
+    token: t.String({ pattern: "^([0-9A-Fa-f]{2})+$" }),
+    platform: t.Literal("ios"),
+    deviceId: t.String({ minLength: 1, pattern: ".*\\S.*" }),
+  }),
+]);
 
 export const NotificationPingCommand = t.Object(
   {
@@ -268,6 +281,7 @@ export type NotificationDelivery = typeof NotificationDelivery.static;
 export type NotificationListResponse = typeof NotificationListResponse.static;
 export type NotificationServerEvent = typeof NotificationServerEvent.static;
 export type PushToken = typeof PushToken.static;
+export type PushTokenInsert = typeof PushTokenInsert.static;
 
 export const notificationModel = new Elysia({ name: "notification-model" }).model({
   Notification,

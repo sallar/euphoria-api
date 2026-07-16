@@ -3,6 +3,7 @@ import { t } from "elysia";
 
 import { chatMessageTypeEnum as chatMessageTypePgEnum } from "@/db/chat-schema";
 import {
+  apnsEnvironmentEnum as notificationApnsEnvironmentEnum,
   devicePlatformEnum as notificationDevicePlatformEnum,
   notificationChannelEnum as notificationChannelPgEnum,
   notificationDeliveryStatusEnum as notificationDeliveryStatusPgEnum,
@@ -39,9 +40,11 @@ export const notificationDeliveryStatusSchema = createSelectSchema(
   notificationDeliveryStatusPgEnum,
 );
 export const pushProviderSchema = createSelectSchema(notificationPushProviderEnum);
+export const apnsEnvironmentSchema = createSelectSchema(notificationApnsEnvironmentEnum);
 export const devicePlatformSchema = createSelectSchema(notificationDevicePlatformEnum);
 
 export const namedEnumSchemas = {
+  ApnsEnvironment: apnsEnvironmentSchema,
   ChatMessageType: chatMessageTypeSchema,
   DevicePlatform: devicePlatformSchema,
   NotificationChannel: notificationChannelSchema,

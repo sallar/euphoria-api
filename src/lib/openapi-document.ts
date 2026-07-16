@@ -27,7 +27,7 @@ const errorStatusDescriptions: Record<string, string> = {
 export const openApiInfo = {
   title: "Euphoria API",
   description: "Canonical REST API contract for Euphoria clients",
-  version: "2026-07-15",
+  version: "2026-07-16",
 } as const;
 
 export const realtimeEnvelopeRegistries = {
@@ -303,7 +303,7 @@ function findNullableComponentReference(
   }
 
   const nonNullType = schema.type.find((type) => type !== "null");
-  if (nonNullType !== "object") return undefined;
+  if (!isSimpleType(nonNullType)) return undefined;
 
   const componentSchema = { ...schema, type: nonNullType };
   const nullableComponentName = componentByFingerprint.get(schemaFingerprint(componentSchema));
@@ -442,11 +442,36 @@ function normalizeSimpleNullableUnion(value: OpenApiObject): OpenApiObject | und
   const nonNullCandidate = value.anyOf.find(
     (candidate) => !(isRecord(candidate) && candidate.type === "null"),
   );
-  if (!nullCandidate || !isRecord(nonNullCandidate) || !isSimpleType(nonNullCandidate.type)) {
+  if (!nullCandidate || !isRecord(nonNullCandidate)) {
     return undefined;
   }
 
   const { anyOf: _anyOf, ...outerMetadata } = value;
+  if (typeof nonNullCandidate.$ref === "string") {
+    const enumName = nonNullCandidate.$ref.match(/^#\/components\/schemas\/(.+)$/)?.[1];
+    if (enumName && enumName in namedEnumSchemas) {
+      return {
+        ...outerMetadata,
+        ...nonNullCandidate,
+        type: ["string", "null"],
+      };
+    }
+  }
+
+  if (Array.isArray(nonNullCandidate.anyOf)) {
+    const enumValues = nonNullCandidate.anyOf.map((candidate) =>
+      isRecord(candidate) && typeof candidate.const === "string" ? candidate.const : undefined,
+    );
+    if (enumValues.length > 0 && enumValues.every((candidate) => candidate !== undefined)) {
+      return {
+        ...outerMetadata,
+        type: ["string", "null"],
+        enum: enumValues,
+      };
+    }
+  }
+
+  if (!isSimpleType(nonNullCandidate.type)) return undefined;
   const { type, ...schemaMetadata } = nonNullCandidate;
 
   return {
