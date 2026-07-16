@@ -2,6 +2,7 @@ import cors from "@elysia/cors";
 import { openapi } from "@elysia/openapi";
 import { Elysia, type ErrorHandler } from "elysia";
 
+import { createMobileAsyncApiDocument } from "@/lib/asyncapi-document";
 import {
   createMobileOpenApiDocument,
   createOpenApiDocument,
@@ -56,6 +57,12 @@ application.get("/openapi/json", () => createOpenApiDocument(application), {
 });
 
 application.get("/openapi/mobile.json", () => createMobileOpenApiDocument(application), {
+  detail: {
+    hide: true,
+  },
+});
+
+application.get("/asyncapi/mobile.json", () => createMobileAsyncApiDocument(application), {
   detail: {
     hide: true,
   },

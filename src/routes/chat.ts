@@ -2,6 +2,7 @@ import Elysia, { t } from "elysia";
 
 import { chatModel } from "@/models/chat";
 import { commonModel } from "@/models/common";
+import { REALTIME_PROTOCOL_VERSION } from "@/models/realtime";
 import { auth } from "@/plugins/auth";
 import {
   broadcastChatPresenceChanged,
@@ -280,7 +281,7 @@ export const chatRoutes = new Elysia({ prefix: "/api/chat", tags: ["Chat"] })
     params: t.Object({
       profileId: uuidParam,
     }),
-    body: "ChatSocketMessage",
+    body: "ChatClientCommand",
     async open(ws) {
       const { profileId } = ws.data.params;
       const result = await getChatPresenceSnapshot({
@@ -308,6 +309,7 @@ export const chatRoutes = new Elysia({ prefix: "/api/chat", tags: ["Chat"] })
       ws.send({
         type: "connected",
         profileId,
+        protocolVersion: REALTIME_PROTOCOL_VERSION,
       });
       ws.send({
         type: "presence_snapshot",

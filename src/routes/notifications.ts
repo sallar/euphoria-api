@@ -2,6 +2,7 @@ import Elysia, { t } from "elysia";
 
 import { commonModel } from "@/models/common";
 import { notificationModel, PushToken } from "@/models/notification";
+import { REALTIME_PROTOCOL_VERSION } from "@/models/realtime";
 import { auth } from "@/plugins/auth";
 import {
   archiveNotification,
@@ -211,12 +212,13 @@ export const notificationRoutes = new Elysia({
   )
   .ws("/ws", {
     auth: true,
-    body: "NotificationSocketMessage",
+    body: "NotificationClientCommand",
     async open(ws) {
       notificationSockets.add(ws.data.user.id, ws);
       ws.send({
         type: "connected",
         unreadCount: await getUnreadNotificationCount(ws.data.user.id),
+        protocolVersion: REALTIME_PROTOCOL_VERSION,
       });
     },
     async message(ws, message) {

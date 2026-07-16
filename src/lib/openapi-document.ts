@@ -2,7 +2,14 @@ import type { AnyElysia } from "elysia";
 
 import { toOpenAPISchema } from "@elysia/openapi";
 
+import type { RealtimeSchemaVariant } from "@/models/realtime";
+
+import { chatClientCommandRegistry, chatServerEventRegistry } from "@/models/chat";
 import { namedEnumSchemas } from "@/models/enums";
+import {
+  notificationClientCommandRegistry,
+  notificationServerEventRegistry,
+} from "@/models/notification";
 
 type OpenApiObject = Record<string, unknown>;
 
@@ -23,27 +30,21 @@ export const openApiInfo = {
   version: "2026-07-15",
 } as const;
 
+export const realtimeEnvelopeRegistries = {
+  ChatClientCommand: chatClientCommandRegistry,
+  ChatServerEvent: chatServerEventRegistry,
+  NotificationClientCommand: notificationClientCommandRegistry,
+  NotificationServerEvent: notificationServerEventRegistry,
+} as const;
+
+export const realtimeEnvelopeNames = Object.keys(realtimeEnvelopeRegistries);
+
 export function createOpenApiDocument(app: AnyElysia): OpenApiObject {
-  const schema = toOpenAPISchema(app, {
-    methods: ["options", "ws"],
-  });
-
-  const document = normalizeOpenApiValue({
-    openapi: "3.1.0",
-    info: openApiInfo,
-    ...schema,
-  }) as OpenApiObject;
-
-  addNamedEnumComponents(document);
-  deduplicateComponentSchemas(document);
-  addBearerSecurityScheme(document);
-  addStandardApplicationErrors(document);
-
-  return pruneUnreachableComponents(document);
+  return pruneUnreachableComponents(createUnprunedOpenApiDocument(app));
 }
 
 export function createMobileOpenApiDocument(app: AnyElysia): OpenApiObject {
-  const document = structuredClone(createOpenApiDocument(app));
+  const document = structuredClone(createUnprunedOpenApiDocument(app));
   const paths = asRecord(document.paths);
   delete paths["/api/notifications/test/{userId}"];
   Object.assign(paths, authPaths);
@@ -58,10 +59,41 @@ export function createMobileOpenApiDocument(app: AnyElysia): OpenApiObject {
   document.info = {
     ...openApiInfo,
     title: "Euphoria Mobile API",
-    description: "Application REST API plus the supported Better Auth mobile operations",
+    description:
+      "Application REST API, supported Better Auth mobile operations, and schema-only realtime message components",
   };
 
-  return pruneUnreachableComponents(document);
+  return pruneUnreachableComponents(document, { schemaRoots: realtimeEnvelopeNames });
+}
+
+export function createRealtimeSchemaComponents(app: AnyElysia): OpenApiObject {
+  const document = createUnprunedOpenApiDocument(app);
+  document.paths = {};
+  const realtimeDocument = pruneUnreachableComponents(document, {
+    schemaRoots: realtimeEnvelopeNames,
+  });
+
+  return asRecord(asRecord(realtimeDocument.components).schemas);
+}
+
+function createUnprunedOpenApiDocument(app: AnyElysia): OpenApiObject {
+  const schema = toOpenAPISchema(app, {
+    methods: ["options", "ws"],
+  });
+
+  const document = normalizeOpenApiValue({
+    openapi: "3.1.0",
+    info: openApiInfo,
+    ...schema,
+  }) as OpenApiObject;
+
+  addNamedEnumComponents(document);
+  deduplicateComponentSchemas(document);
+  addRealtimeEnvelopeComponents(document);
+  addBearerSecurityScheme(document);
+  addStandardApplicationErrors(document);
+
+  return document;
 }
 
 export function normalizeOpenApiValue(value: unknown): unknown {
@@ -118,7 +150,10 @@ export function normalizeOpenApiValue(value: unknown): unknown {
   return normalized;
 }
 
-export function pruneUnreachableComponents(document: OpenApiObject): OpenApiObject {
+export function pruneUnreachableComponents(
+  document: OpenApiObject,
+  { schemaRoots = [] }: { schemaRoots?: readonly string[] } = {},
+): OpenApiObject {
   const components = asRecord(document.components);
   const reachable = new Map<string, Set<string>>();
   const queue: Array<[string, string]> = [];
@@ -131,6 +166,7 @@ export function pruneUnreachableComponents(document: OpenApiObject): OpenApiObje
     queue.push([section, name]);
   };
 
+  for (const schemaName of schemaRoots) markReachable("schemas", schemaName);
   collectComponentReferences(document.paths, markReachable);
 
   while (queue.length > 0) {
@@ -154,6 +190,36 @@ export function pruneUnreachableComponents(document: OpenApiObject): OpenApiObje
   return {
     ...document,
     components: prunedComponents,
+  };
+}
+
+function addRealtimeEnvelopeComponents(document: OpenApiObject) {
+  const components = asRecord(document.components);
+  const schemas = asRecord(components.schemas);
+
+  for (const [name, registry] of Object.entries(realtimeEnvelopeRegistries)) {
+    schemas[name] = createRealtimeEnvelope(registry);
+  }
+
+  components.schemas = schemas;
+  document.components = components;
+}
+
+function createRealtimeEnvelope(registry: readonly RealtimeSchemaVariant[]): OpenApiObject {
+  const mapping = Object.fromEntries(
+    registry.map(({ name, wireType }) => [wireType, `#/components/schemas/${name}`]),
+  );
+
+  if (Object.keys(mapping).length !== registry.length) {
+    throw new Error("Realtime registry wire discriminators must be unique within an envelope");
+  }
+
+  return {
+    oneOf: registry.map(({ name }) => schemaReference(name)),
+    discriminator: {
+      propertyName: "type",
+      mapping,
+    },
   };
 }
 
@@ -184,8 +250,8 @@ function deduplicateComponentSchemas(document: OpenApiObject) {
     componentByFingerprint.set(schemaFingerprint(normalizeOpenApiValue(schema)), name);
   }
 
-  const replaceDuplicate = (value: unknown, isComponentRoot = false): unknown => {
-    if (Array.isArray(value)) return value.map((child) => replaceDuplicate(child));
+  const replaceExactDuplicate = (value: unknown, isComponentRoot = false): unknown => {
+    if (Array.isArray(value)) return value.map((child) => replaceExactDuplicate(child));
     if (!isRecord(value)) return value;
 
     if (!isComponentRoot) {
@@ -194,15 +260,59 @@ function deduplicateComponentSchemas(document: OpenApiObject) {
     }
 
     return Object.fromEntries(
-      Object.entries(value).map(([key, child]) => [key, replaceDuplicate(child)]),
+      Object.entries(value).map(([key, child]) => [key, replaceExactDuplicate(child)]),
     );
   };
 
-  components.schemas = Object.fromEntries(
-    Object.entries(schemas).map(([name, schema]) => [name, replaceDuplicate(schema, true)]),
+  const deduplicatedSchemas = Object.fromEntries(
+    Object.entries(schemas).map(([name, schema]) => [name, replaceExactDuplicate(schema, true)]),
   );
-  document.paths = replaceDuplicate(document.paths) as OpenApiObject;
+  const deduplicatedPaths = replaceExactDuplicate(document.paths) as OpenApiObject;
+  const canonicalComponentByFingerprint = new Map(
+    Object.entries(deduplicatedSchemas).map(([name, schema]) => [schemaFingerprint(schema), name]),
+  );
+
+  const replaceNullableDuplicate = (value: unknown, isComponentRoot = false): unknown => {
+    if (Array.isArray(value)) return value.map((child) => replaceNullableDuplicate(child));
+    if (!isRecord(value)) return value;
+
+    const schema = Object.fromEntries(
+      Object.entries(value).map(([key, child]) => [key, replaceNullableDuplicate(child)]),
+    );
+    if (isComponentRoot) return schema;
+
+    return findNullableComponentReference(schema, canonicalComponentByFingerprint) ?? schema;
+  };
+
+  components.schemas = Object.fromEntries(
+    Object.entries(deduplicatedSchemas).map(([name, schema]) => [
+      name,
+      replaceNullableDuplicate(schema, true),
+    ]),
+  );
+  document.paths = replaceNullableDuplicate(deduplicatedPaths) as OpenApiObject;
   document.components = components;
+}
+
+function findNullableComponentReference(
+  schema: OpenApiObject,
+  componentByFingerprint: ReadonlyMap<string, string>,
+): OpenApiObject | undefined {
+  if (!Array.isArray(schema.type) || schema.type.length !== 2 || !schema.type.includes("null")) {
+    return undefined;
+  }
+
+  const nonNullType = schema.type.find((type) => type !== "null");
+  if (nonNullType !== "object") return undefined;
+
+  const componentSchema = { ...schema, type: nonNullType };
+  const nullableComponentName = componentByFingerprint.get(schemaFingerprint(componentSchema));
+  if (!nullableComponentName) return undefined;
+
+  return {
+    ...schemaReference(nullableComponentName),
+    type: schema.type,
+  };
 }
 
 function getStringEnumValues(schema: OpenApiObject): string[] {

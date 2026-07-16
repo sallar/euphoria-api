@@ -1,10 +1,10 @@
-import type { ChatSocketEvent } from "@/models/chat";
+import type { ChatServerEvent } from "@/models/chat";
 
 type ChatSocket = {
   id: string;
   userId: string;
   profileId: string;
-  send: (event: ChatSocketEvent) => unknown;
+  send: (event: ChatServerEvent) => unknown;
 };
 
 class ChatSocketHub {
@@ -107,7 +107,7 @@ class ChatSocketHub {
 
   sendToProfile(
     profileId: string,
-    event: ChatSocketEvent,
+    event: ChatServerEvent,
     options: { excludeSocketId?: string } = {},
   ) {
     const sockets = this.socketsByProfileId.get(profileId);
@@ -116,7 +116,7 @@ class ChatSocketHub {
     return this.sendToSockets(sockets.keys(), event, options);
   }
 
-  sendToProfiles(profileIds: Iterable<string>, event: ChatSocketEvent) {
+  sendToProfiles(profileIds: Iterable<string>, event: ChatServerEvent) {
     let sent = 0;
     for (const profileId of profileIds) {
       sent += this.sendToProfile(profileId, event);
@@ -127,7 +127,7 @@ class ChatSocketHub {
 
   sendToConversationSubscribers(
     conversationId: string,
-    event: ChatSocketEvent,
+    event: ChatServerEvent,
     options: { excludeSocketId?: string } = {},
   ) {
     const socketIds = this.conversationSubscriptions.get(conversationId);
@@ -138,7 +138,7 @@ class ChatSocketHub {
 
   private sendToSockets(
     socketIds: Iterable<string>,
-    event: ChatSocketEvent,
+    event: ChatServerEvent,
     options: { excludeSocketId?: string },
   ) {
     let sent = 0;

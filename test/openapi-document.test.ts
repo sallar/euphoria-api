@@ -7,7 +7,13 @@ import {
   createMobileOpenApiDocument,
   createOpenApiDocument,
   normalizeOpenApiValue,
+  realtimeEnvelopeNames,
 } from "@/lib/openapi-document";
+import { chatClientCommandRegistry, chatServerEventRegistry } from "@/models/chat";
+import {
+  notificationClientCommandRegistry,
+  notificationServerEventRegistry,
+} from "@/models/notification";
 import { mobileAuthBackend } from "@/routes/mobile-auth";
 
 type JsonObject = Record<string, any>;
@@ -136,7 +142,7 @@ describe("OpenAPI value normalization", () => {
 describe.each([
   ["application", applicationDocument],
   ["mobile", mobileDocument],
-])("%s OpenAPI contract", (_name, document) => {
+])("%s OpenAPI contract", (name, document) => {
   test("is valid OpenAPI 3.1", async () => {
     expect(document.openapi).toBe("3.1.0");
     await expect(SwaggerParser.validate(structuredClone(document) as any)).resolves.toBeDefined();
@@ -170,12 +176,27 @@ describe.each([
     });
   });
 
-  test("has no websocket paths, websocket-only components, or circular placeholders", () => {
+  test("has no websocket paths, legacy socket components, or circular placeholders", () => {
     expect(Object.keys(document.paths).some((path) => path.includes("/ws"))).toBeFalse();
     expect(
       Object.keys(document.components.schemas).some((name) => name.includes("Socket")),
     ).toBeFalse();
     expect(JSON.stringify(document).toLowerCase()).not.toContain("circular reference");
+  });
+
+  test("deliberately publishes registry-backed realtime schemas only for mobile codegen", () => {
+    const realtimeSchemaNames = [
+      ...realtimeEnvelopeNames,
+      ...chatClientCommandRegistry.map(({ name }) => name),
+      ...chatServerEventRegistry.map(({ name }) => name),
+      ...notificationClientCommandRegistry.map(({ name }) => name),
+      ...notificationServerEventRegistry.map(({ name }) => name),
+    ];
+    const publishedNames = realtimeSchemaNames.filter(
+      (schemaName) => document.components.schemas[schemaName] !== undefined,
+    );
+
+    expect(publishedNames).toEqual(name === "mobile" ? realtimeSchemaNames : []);
   });
 
   test("has no dangling local component references", () => {
@@ -220,6 +241,19 @@ describe("published OpenAPI endpoints", () => {
       expect((await response.json()).openapi).toBe("3.1.0");
     },
   );
+});
+
+describe("mobile realtime component contract", () => {
+  test("reuses the required nullable Notification payload for read events", () => {
+    const event = mobileDocument.components.schemas.NotificationReadEvent;
+
+    expect(event.required).toContain("notification");
+    expect(event.properties.notification).toEqual({
+      $ref: "#/components/schemas/Notification",
+      type: ["object", "null"],
+    });
+    expect(event.properties.notification.properties).toBeUndefined();
+  });
 });
 
 describe("application DTO contract", () => {

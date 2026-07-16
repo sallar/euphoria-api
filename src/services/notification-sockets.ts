@@ -1,8 +1,8 @@
-import type { NotificationSocketEvent } from "@/models/notification";
+import type { NotificationServerEvent } from "@/models/notification";
 
 type NotificationSocket = {
   id: string;
-  send: (event: NotificationSocketEvent) => unknown;
+  send: (event: NotificationServerEvent) => unknown;
 };
 
 class NotificationSocketHub {
@@ -22,7 +22,7 @@ class NotificationSocketHub {
     if (sockets.size === 0) this.socketsByUserId.delete(userId);
   }
 
-  sendToUser(userId: string, event: NotificationSocketEvent) {
+  sendToUser(userId: string, event: NotificationServerEvent) {
     const sockets = this.socketsByUserId.get(userId);
     if (!sockets) return 0;
 
