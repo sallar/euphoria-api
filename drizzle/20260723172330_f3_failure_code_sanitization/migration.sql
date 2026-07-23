@@ -1,0 +1,2 @@
+ALTER TABLE "delivery_job" ADD CONSTRAINT "delivery_job_failure_code_check" CHECK ("last_failure_code" is null or "last_failure_code" ~ '^[a-z][a-z0-9_.:-]{0,99}$');--> statement-breakpoint
+ALTER TABLE "delivery_job_attempt" ADD CONSTRAINT "delivery_job_attempt_failure_code_check" CHECK ("failure_code" is null or "failure_code" ~ '^[a-z][a-z0-9_.:-]{0,99}$');
