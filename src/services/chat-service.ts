@@ -24,6 +24,7 @@ import {
   profileReactionValues,
   profileUser,
 } from "@/db/profile-schema";
+import { decodeCursor, encodeCursor } from "@/lib/cursor";
 import { db } from "@/lib/db";
 import { findOwnedProfile } from "@/lib/profile-queries";
 
@@ -77,6 +78,7 @@ type RawConversationRow = {
   createdAt: Date;
   updatedAt: Date;
   sortAt: Date;
+  cursorSortAtMicros: string;
 };
 
 const defaultConversationLimit = 20;
@@ -879,7 +881,15 @@ export const listChatConversations = async ({
   await syncConversationsForProfileMatches(profileId);
 
   const pageSize = normalizeLimit(limit, defaultConversationLimit);
-  const cursorDate = cursor ? new Date(cursor) : null;
+  const context = { userId, profileId };
+  const cursorSort = cursor
+    ? decodeCursor({
+        cursor,
+        resource: "chat-conversations",
+        direction: "next",
+        context,
+      })
+    : null;
   const rows = (await db.execute(sql`
     with conversation_rows as (
       select
@@ -931,7 +941,8 @@ export const listChatConversations = async ({
       unread_state."firstUnreadMessageCreatedAt",
       conversation_rows."createdAt",
       conversation_rows."updatedAt",
-      conversation_rows."sortAt"
+      conversation_rows."sortAt",
+      ((extract(epoch from conversation_rows."sortAt") * 1000000)::bigint)::text as "cursorSortAtMicros"
     from conversation_rows
     inner join ${profile} matched_profile
       on matched_profile.id = conversation_rows."matchedProfileId"
@@ -982,20 +993,36 @@ export const listChatConversations = async ({
           )
         )
     ) unread_state on true
-    where ${cursorDate}::timestamptz is null
-      or conversation_rows."sortAt" < ${cursorDate}::timestamptz
+    where ${cursorSort?.sortAtMicros ?? null}::text is null
+      or conversation_rows."sortAt" < to_timestamp(${cursorSort?.sortAtMicros ?? null}::numeric / 1000000)
+      or (
+        conversation_rows."sortAt" = to_timestamp(${cursorSort?.sortAtMicros ?? null}::numeric / 1000000)
+        and conversation_rows.id < ${cursorSort?.conversationId ?? null}::uuid
+      )
     order by conversation_rows."sortAt" desc, conversation_rows.id desc
     limit ${pageSize + 1}
   `)) as RawConversationRow[];
 
   const data = rows.slice(0, pageSize).map(toConversation);
-  const next = rows[pageSize];
+  const lastReturned = rows[Math.min(rows.length, pageSize) - 1];
+  const nextCursor =
+    rows.length > pageSize && lastReturned
+      ? encodeCursor({
+          resource: "chat-conversations",
+          direction: "next",
+          context,
+          sort: {
+            sortAtMicros: lastReturned.cursorSortAtMicros,
+            conversationId: lastReturned.id,
+          },
+        })
+      : null;
 
   return {
     ok: true,
     data: {
       data,
-      cursor: next?.sortAt.toISOString() ?? null,
+      cursor: nextCursor,
     },
   };
 };
@@ -1044,11 +1071,31 @@ export const listChatMessages = async ({
   if (!access.ok) return access;
 
   const pageSize = normalizeLimit(limit, defaultMessageLimit);
+  const context = { userId, profileId, conversationId };
+  const cursorSort = cursor
+    ? decodeCursor({
+        cursor,
+        resource: "chat-messages",
+        direction: "next",
+        context,
+      })
+    : null;
   const conditions: SQL[] = [eq(chatMessage.conversationId, conversationId)];
-  if (cursor) conditions.push(lt(chatMessage.createdAt, new Date(cursor)));
+  if (cursorSort) {
+    const cursorCreatedAt = sql`to_timestamp(${cursorSort.createdAtMicros}::numeric / 1000000)`;
+    conditions.push(
+      or(
+        lt(chatMessage.createdAt, cursorCreatedAt),
+        and(eq(chatMessage.createdAt, cursorCreatedAt), lt(chatMessage.id, cursorSort.messageId)),
+      )!,
+    );
+  }
 
   const rows = await db
-    .select(messageFields)
+    .select({
+      ...messageFields,
+      cursorCreatedAtMicros: sql<string>`((extract(epoch from ${chatMessage.createdAt}) * 1000000)::bigint)::text`,
+    })
     .from(chatMessage)
     .where(and(...conditions))
     .orderBy(desc(chatMessage.createdAt), desc(chatMessage.id))
@@ -1063,13 +1110,25 @@ export const listChatMessages = async ({
   const data = dataRows.map((row) =>
     toMessage(row, reactionCountsByMessageId.get(row.id), viewerReactionsByMessageId.get(row.id)),
   );
-  const next = rows[pageSize];
+  const lastReturned = rows[Math.min(rows.length, pageSize) - 1];
+  const nextCursor =
+    rows.length > pageSize && lastReturned
+      ? encodeCursor({
+          resource: "chat-messages",
+          direction: "next",
+          context,
+          sort: {
+            createdAtMicros: lastReturned.cursorCreatedAtMicros,
+            messageId: lastReturned.id,
+          },
+        })
+      : null;
 
   return {
     ok: true,
     data: {
       data,
-      cursor: next?.createdAt.toISOString() ?? null,
+      cursor: nextCursor,
     },
   };
 };

@@ -2,6 +2,7 @@ import Elysia, { t } from "elysia";
 
 import { chatModel } from "@/models/chat";
 import { commonModel } from "@/models/common";
+import { OpaqueCursor } from "@/models/cursor";
 import { REALTIME_PROTOCOL_VERSION } from "@/models/realtime";
 import { auth } from "@/plugins/auth";
 import {
@@ -56,11 +57,12 @@ export const chatRoutes = new Elysia({ prefix: "/api/chat", tags: ["Chat"] })
         profileId: uuidParam,
       }),
       query: t.Object({
-        cursor: t.Optional(t.String({ format: "date-time" })),
+        cursor: t.Optional(OpaqueCursor),
         limit: t.Optional(t.Numeric({ minimum: 1, maximum: 100, multipleOf: 1 })),
       }),
       response: {
         200: "ChatConversationListResponse",
+        400: "ApiErrorResponse",
         404: "ApiErrorResponse",
       },
       detail: {
@@ -120,11 +122,12 @@ export const chatRoutes = new Elysia({ prefix: "/api/chat", tags: ["Chat"] })
         conversationId: uuidParam,
       }),
       query: t.Object({
-        cursor: t.Optional(t.String({ format: "date-time" })),
+        cursor: t.Optional(OpaqueCursor),
         limit: t.Optional(t.Numeric({ minimum: 1, maximum: 100, multipleOf: 1 })),
       }),
       response: {
         200: "ChatMessageListResponse",
+        400: "ApiErrorResponse",
         404: "ApiErrorResponse",
       },
       detail: {

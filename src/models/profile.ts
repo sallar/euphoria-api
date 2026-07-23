@@ -1,5 +1,6 @@
 import Elysia, { t } from "elysia";
 
+import { OpaqueCursor } from "./cursor";
 import {
   profileGenderSchema,
   profileOrientationSchema,
@@ -81,7 +82,7 @@ const ProfileFeedItem = t.Object({
 
 const ProfileFeedResponse = t.Object({
   data: t.Array(ProfileFeedItem),
-  cursor: t.Nullable(t.Number({ minimum: 0 })),
+  cursor: t.Nullable(OpaqueCursor),
 });
 
 export type Profile = typeof Profile.static;
