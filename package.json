@@ -4,6 +4,9 @@
   "scripts": {
     "test": "bun test",
     "test:openapi": "bun test test/openapi-document.test.ts",
+    "test:integration:services:up": "docker compose --profile integration up -d --wait postgres-integration redis-integration",
+    "test:integration:services:down": "docker compose --profile integration stop postgres-integration redis-integration",
+    "test:integration": "DATABASE_URL=${INTEGRATION_DATABASE_URL:-postgresql://postgres:postgres@127.0.0.1:55432/euphoria_integration} bunx drizzle-kit migrate && RUN_INTEGRATION_TESTS=1 bun test test/integration/postgres-redis.smoke.test.ts",
     "dev": "bun run --watch src/index.ts",
     "auth:token": "bun run scripts/generate-auth-token.ts",
     "notifications:test": "bun run scripts/send-test-notification.ts",
@@ -33,7 +36,8 @@
     "bun-types": "latest",
     "drizzle-kit": "^1.0.0-beta.22",
     "oxfmt": "^0.50.0",
-    "oxlint": "^1.65.0"
+    "oxlint": "^1.65.0",
+    "typescript": "^6.0.3"
   },
   "overrides": {
     "@sinclair/typebox": "0.34.0"
