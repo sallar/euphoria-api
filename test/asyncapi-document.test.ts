@@ -173,6 +173,26 @@ describe("mobile AsyncAPI contract", () => {
     }
   });
 
+  test("publishes the corrected shared reply-summary schema without changing versions", () => {
+    const asyncMessage = asyncApiDocument.components.schemas.ChatMessage;
+    const openApiMessage = mobileOpenApiDocument.components.schemas.ChatMessage;
+    const replySummary = asyncMessage.properties.replySummary;
+
+    expect(asyncMessage).toEqual(openApiMessage);
+    expect(asyncMessage.required).toContain("replySummary");
+    expect(replySummary.type).toEqual(["object", "null"]);
+    expect(replySummary.required).not.toContain("preview");
+    expect(replySummary.properties.preview).toEqual({
+      $ref: "#/components/schemas/ChatMessageReplySummaryPreview",
+    });
+    expect(JSON.stringify(replySummary.properties.preview)).not.toContain('"type":"null"');
+    expect(asyncApiDocument.components.schemas.ChatMessageReplySummaryPreview.anyOf).toHaveLength(
+      2,
+    );
+    expect(asyncApiDocument.info.version).toBe("2.0.0");
+    expect(asyncApiDocument["x-protocol-version"].current).toBe(2);
+  });
+
   test("reuses the required nullable Notification payload for read events", () => {
     const asyncApiEvent = asyncApiDocument.components.schemas.NotificationReadEvent;
     const openApiEvent = mobileOpenApiDocument.components.schemas.NotificationReadEvent;

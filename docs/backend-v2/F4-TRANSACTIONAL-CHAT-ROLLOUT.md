@@ -3,7 +3,8 @@
 Status: implementation record; production activation blocked on the protocol 2 client and F5
 delivery worker  
 Date: 2026-07-24  
-Applies to: migration `20260723220755_f4_transactional_chat_correctness`
+Applies to: migrations `20260723220755_f4_transactional_chat_correctness` and
+`20260723233434_chat_reply_summary_preview_optional`
 
 F4 routes chat mutations through the F3 PostgreSQL transaction APIs. PostgreSQL owns the command
 claim, chat domain state, read and conversation projections, canonical notification state,
@@ -119,6 +120,14 @@ delivery metadata, and message attachments back to their original JSON value. Th
 logical F3 contents while allowing PostgreSQL payload operators and the F5 job reference lookup
 to work.
 
+The forward compatibility migration
+`20260723233434_chat_reply_summary_preview_optional` changes only mutable
+`chat_message.reply_summary` JSONB. Deleted and unavailable summaries lose the `preview` key.
+Available summaries retain an object preview; a missing, null, or non-object preview is
+conservatively changed to `unavailable` and has the key removed. The update guards non-object
+summary values and is idempotent in effect. It does not rewrite completed command results,
+durable-event payloads, scope metadata, jobs, or notification state.
+
 ## Common chat/match lock
 
 Like, unlike, rematch, send, and reaction calculate the sorted profile pair first. They acquire:
@@ -195,14 +204,23 @@ messageId
 senderProfileId | null
 messageType: text | image
 state: available | deleted | unavailable
-preview: {kind: text, text, truncated} | {kind: image} | null
+preview, present only when state is available:
+  {kind: text, text, truncated} | {kind: image}
 ```
 
 Text is bounded to 160 Unicode extended grapheme clusters with `Intl.Segmenter`. The snapshot is
-stored when the reply is created. It has no display name or media URL. A soft-deleted target
-projects `deleted` and no preview. A target outside retained history projects `unavailable` and no
-preview while retaining its stored ID, sender reference, and type. P4 remains responsible for
-future privacy redaction or erasure.
+stored when the reply is created. It has no display name or media URL. `replySummary` itself
+remains required-nullable, so non-reply messages contain `"replySummary": null`. Available text
+and image summaries always contain their corresponding non-null preview. A soft-deleted target
+projects `deleted` and omits `preview`. A target outside retained history, or malformed legacy
+available state without a valid preview, projects `unavailable` and omits `preview` while
+retaining its stored ID, sender reference, and type. P4 remains responsible for future privacy
+redaction or erasure.
+
+This staging-only protocol-2 correction keeps AsyncAPI contract `2.0.0` and realtime protocol
+`2`: protocol 2 has not shipped to a supported production client, so the generator-compatible
+optional non-null preview shape is corrected before release rather than creating another protocol
+generation.
 
 ## Notification and job producer
 
@@ -291,7 +309,9 @@ Production activation requires all of these preconditions:
 2. F3 migrations and the F4 migration are applied. The migration converts valid double-encoded
    JSONB values, removes the read-message foreign key, backfills exact read timestamps, adds the
    tuple consistency check, and adds reply snapshots. Existing reply rows are conservatively
-   marked `unavailable`; no historical event is fabricated.
+   marked `unavailable`; no historical event is fabricated. The reply-summary compatibility
+   migration then removes legacy null preview keys and downgrades malformed available summaries
+   in mutable message rows without rewriting immutable command or event history.
 3. The protocol 2 client is deployed for the coordinated strict cutover and always persists a
    canonical UUID key before sending.
 4. The F5 worker is implemented, verified, and ready to consume

@@ -477,21 +477,37 @@ const createReplySummary = (
     typeof chatMessage.$inferSelect,
     "content" | "id" | "messageType" | "senderProfileId"
   >,
-): ChatMessageReplySummary => ({
-  messageId: target.id,
-  senderProfileId: target.senderProfileId,
-  messageType: target.messageType,
-  state: "available",
-  preview:
-    target.messageType === "image"
-      ? { kind: "image" }
-      : target.content === null
-        ? null
-        : {
-            kind: "text",
-            ...boundTextByGraphemes(target.content, 160),
-          },
-});
+): ChatMessageReplySummary => {
+  const identity = {
+    messageId: target.id,
+    senderProfileId: target.senderProfileId,
+    messageType: target.messageType,
+  };
+
+  if (target.messageType === "image") {
+    return {
+      ...identity,
+      state: "available",
+      preview: { kind: "image" },
+    };
+  }
+
+  if (target.content === null) {
+    return {
+      ...identity,
+      state: "unavailable",
+    };
+  }
+
+  return {
+    ...identity,
+    state: "available",
+    preview: {
+      kind: "text",
+      ...boundTextByGraphemes(target.content, 160),
+    },
+  };
+};
 
 const getUnreadNotificationCountInTransaction = async (tx: DatabaseTransaction, userId: string) => {
   const [result] = await tx
@@ -742,29 +758,62 @@ const loadParticipantReadPositions = async (
 const projectReplySummary = (
   summary: ChatMessageReplySummary | null,
   targetState: { deletedAt: Date | null } | undefined,
-) => {
+): ChatMessageReplySummary | null => {
   if (!summary) return null;
-  if (!targetState) {
+
+  const withoutPreview = (
+    state: Extract<ChatMessageReplySummary["state"], "deleted" | "unavailable">,
+  ): ChatMessageReplySummary => {
+    const { messageId, messageType, preview: _preview, senderProfileId } = summary;
     return {
-      ...summary,
-      state: "unavailable" as const,
-      preview: null,
+      messageId,
+      senderProfileId,
+      messageType,
+      state,
     };
+  };
+
+  if (!targetState) {
+    return withoutPreview("unavailable");
   }
   if (targetState.deletedAt) {
-    return {
-      ...summary,
-      state: "deleted" as const,
-      preview: null,
-    };
+    return withoutPreview("deleted");
   }
   if (summary.state !== "available") {
+    return withoutPreview(summary.state);
+  }
+
+  if (summary.messageType === "image" && summary.preview?.kind === "image") {
     return {
-      ...summary,
-      preview: null,
+      messageId: summary.messageId,
+      senderProfileId: summary.senderProfileId,
+      messageType: summary.messageType,
+      state: "available",
+      preview: { kind: "image" },
     };
   }
-  return summary;
+
+  if (
+    summary.messageType === "text" &&
+    summary.preview?.kind === "text" &&
+    typeof summary.preview.text === "string" &&
+    typeof summary.preview.truncated === "boolean"
+  ) {
+    const boundedPreview = boundTextByGraphemes(summary.preview.text, 160);
+    return {
+      messageId: summary.messageId,
+      senderProfileId: summary.senderProfileId,
+      messageType: summary.messageType,
+      state: "available",
+      preview: {
+        kind: "text",
+        text: boundedPreview.text,
+        truncated: summary.preview.truncated || boundedPreview.truncated,
+      },
+    };
+  }
+
+  return withoutPreview("unavailable");
 };
 
 const loadReplySummaryStates = async (executor: ChatDatabaseExecutor, rows: ChatMessageRow[]) => {

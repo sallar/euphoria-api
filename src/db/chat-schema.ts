@@ -33,7 +33,7 @@ export type ChatMessageReplySummary = {
   senderProfileId: string | null;
   messageType: (typeof chatMessageTypeValues)[number];
   state: "available" | "deleted" | "unavailable";
-  preview:
+  preview?:
     | {
         kind: "text";
         text: string;
@@ -41,8 +41,7 @@ export type ChatMessageReplySummary = {
       }
     | {
         kind: "image";
-      }
-    | null;
+      };
 };
 
 export const chatConversation = pgTable(

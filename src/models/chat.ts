@@ -66,7 +66,7 @@ export const ChatMessageReplySummary = t.Object({
   senderProfileId: t.Nullable(uuid),
   messageType: chatMessageTypeSchema,
   state: t.Union([t.Literal("available"), t.Literal("deleted"), t.Literal("unavailable")]),
-  preview: t.Nullable(ChatMessageReplySummaryPreview),
+  preview: t.Optional(ChatMessageReplySummaryPreview),
 });
 
 export const ChatConversationLastMessage = t.Object({
