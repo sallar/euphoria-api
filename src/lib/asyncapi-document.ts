@@ -53,7 +53,8 @@ export function createMobileAsyncApiDocument(app: AnyElysia): AsyncApiObject {
           "Authenticated profile-scoped chat socket. A missing or invalid bearer session fails the HTTP upgrade with 401. An inaccessible profile produces a chat error and closes with policy-violation code 1008. After reconnect, reconcile conversations, messages, read state, reactions, and presence assumptions through REST before treating socket events as current.",
         parameters: {
           profileId: {
-            description: "Owned profile UUID used for chat authorization and event scope.",
+            description:
+              "Current active profile UUID for which the authenticated user has an owner or member role. It defines chat authorization and event scope.",
             examples: ["00000000-0000-4000-8000-000000000001"],
           },
         },

@@ -26,7 +26,7 @@ import {
 } from "@/db/profile-schema";
 import { decodeCursor, encodeCursor } from "@/lib/cursor";
 import { db } from "@/lib/db";
-import { findOwnedProfile } from "@/lib/profile-queries";
+import { findActiveProfileMembership } from "@/lib/profile-queries";
 
 import { chatSockets } from "./chat-sockets";
 import { createNotification } from "./notification-service";
@@ -295,7 +295,7 @@ const getConversationAccess = async ({
   profileId: string;
   userId: string;
 }): Promise<ChatServiceResult<ConversationAccess>> => {
-  const [profileAccess] = await findOwnedProfile(profileId, userId);
+  const [profileAccess] = await findActiveProfileMembership(profileId, userId);
   if (!profileAccess) {
     return {
       ok: false,
@@ -526,7 +526,7 @@ export const getChatPresenceSnapshot = async ({
     }[]
   >
 > => {
-  const [profileAccess] = await findOwnedProfile(profileId, userId);
+  const [profileAccess] = await findActiveProfileMembership(profileId, userId);
   if (!profileAccess) {
     return {
       ok: false,
@@ -869,7 +869,7 @@ export const listChatConversations = async ({
   profileId: string;
   userId: string;
 }): Promise<ChatServiceResult<{ data: ChatConversation[]; cursor: string | null }>> => {
-  const [profileAccess] = await findOwnedProfile(profileId, userId);
+  const [profileAccess] = await findActiveProfileMembership(profileId, userId);
   if (!profileAccess) {
     return {
       ok: false,

@@ -1,11 +1,12 @@
-import { and, eq, isNull, ne, sql } from "drizzle-orm";
+import { eq, isNull, ne, sql } from "drizzle-orm";
 import { randomInt, randomUUID } from "node:crypto";
 
 import type { Notification } from "@/models/notification";
 
 import { user } from "@/db/auth-schema";
-import { profile, profileUser } from "@/db/profile-schema";
+import { profile } from "@/db/profile-schema";
 import { db } from "@/lib/db";
+import { findActiveProfileForUser } from "@/lib/profile-queries";
 
 import type { NotificationType } from "./notification-service";
 
@@ -67,20 +68,6 @@ const findRecipient = async (id: string) => {
   return recipient;
 };
 
-const findRecipientProfile = async (id: string) => {
-  const [recipientProfile] = await db
-    .select({
-      id: profile.id,
-      name: profile.name,
-    })
-    .from(profile)
-    .innerJoin(profileUser, eq(profile.id, profileUser.profileId))
-    .where(and(eq(profileUser.userId, id), isNull(profile.deletedAt)))
-    .limit(1);
-
-  return recipientProfile;
-};
-
 const findRandomActorProfile = async (recipientProfileId: string | undefined) => {
   const conditions = [isNull(profile.deletedAt)];
   if (recipientProfileId) conditions.push(ne(profile.id, recipientProfileId));
@@ -104,7 +91,7 @@ export const sendRandomTestNotification = async (
   const recipient = await findRecipient(userId);
   if (!recipient) return null;
 
-  const recipientProfile = await findRecipientProfile(userId);
+  const recipientProfile = await findActiveProfileForUser(userId);
   const actorProfile = await findRandomActorProfile(recipientProfile?.id);
   const template = pickRandom(templates);
   const notification = await createNotification({

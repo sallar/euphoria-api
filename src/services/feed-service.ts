@@ -6,7 +6,7 @@ import type { ProfileFeedItem } from "@/models/profile";
 import { profile, profileReaction, profileUser } from "@/db/profile-schema";
 import { decodeCursor, encodeCursor } from "@/lib/cursor";
 import { db } from "@/lib/db";
-import { findOwnedProfile, findPublicProfilePhotos } from "@/lib/profile-queries";
+import { findActiveProfileMembership, findPublicProfilePhotos } from "@/lib/profile-queries";
 
 const defaultPageSize = 20;
 const maxPageSize = 100;
@@ -83,7 +83,7 @@ export const listProfileFeed = async ({
   radius: number;
   userId: string;
 }): Promise<FeedServiceResult> => {
-  const [profileAccess] = await findOwnedProfile(profileId, userId);
+  const [profileAccess] = await findActiveProfileMembership(profileId, userId);
   if (!profileAccess) return { ok: false, message: "Profile not found" };
 
   const pageSize = normalizeFeedLimit(limit);
