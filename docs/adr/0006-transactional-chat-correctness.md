@@ -62,9 +62,11 @@ Profile-scope unread aggregate state has a canonical REST endpoint and durable e
 permanent media URL. Canonical message events exclude caller tokens. REST responses and
 origin-only WebSocket acknowledgements carry correlation/idempotency outcomes.
 
-The reply snapshot contains target ID, nullable sender profile ID, message type, state, and either
-a 160-extended-grapheme text preview, an image discriminator, or `null`. Deleted and unavailable
-targets expose no preview. The snapshot deliberately contains no display name or media URL.
+The reply snapshot contains target ID, nullable sender profile ID, message type, state, and, only
+for an available target, either a 160-extended-grapheme text preview or an image discriminator.
+Deleted and unavailable targets omit the preview property. `ChatMessage.replySummary` remains
+required-nullable, so non-reply messages explicitly contain `null`. The snapshot deliberately
+contains no display name or media URL.
 
 The approved event families are `chat.message.created`, `chat.reaction.state`,
 `chat.conversation.state`, `chat.conversation.read`, `chat.conversation.upsert`,
@@ -83,6 +85,13 @@ REST returns `201` for both first success and replay, with `Idempotency-Replayed
 WebSocket returns `send_message_result` only to the origin, with its optional correlation value
 and key. A replay emits no canonical event. Realtime protocol is `2` and the AsyncAPI contract is
 `2.0.0`; this greenfield rollout is a coordinated strict cutover, not a compatibility fallback.
+
+Before protocol 2 shipped to a supported production client, its staging contract changed the
+reply preview from required-nullable to optional non-null for Swift OpenAPI Generator
+compatibility. The contract and protocol versions remain `2.0.0` and `2` because this is a
+pre-release correction, not a new protocol generation. A forward migration normalizes only
+mutable `chat_message.reply_summary` rows; immutable completed command results and durable-event
+payloads are not rewritten.
 
 Command and event cleanup run hourly in bounded operator-configured batches. Cleanup uses
 PostgreSQL time, reports backlog/lag metrics, never cleans nonterminal claims, and preserves

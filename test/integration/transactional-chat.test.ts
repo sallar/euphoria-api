@@ -213,6 +213,9 @@ const countGraphemes = (value: string) => {
   return Array.from(new Segmenter(undefined, { granularity: "grapheme" }).segment(value)).length;
 };
 
+const hasOwn = (value: object, property: PropertyKey) =>
+  Object.prototype.hasOwnProperty.call(value, property);
+
 const connectChatSocket = async ({
   port,
   profileId,
@@ -988,6 +991,8 @@ describe("F4 transactional chat correctness against migrated PostgreSQL", () => 
         });
         expect(target.ok).toBeTrue();
         if (!target.ok) throw new Error(target.message);
+        expect(target.data.replySummary).toBeNull();
+        expect(hasOwn(target.data, "replySummary")).toBeTrue();
 
         const reply = await sendDirect({
           fixture,
@@ -1017,6 +1022,83 @@ describe("F4 transactional chat correctness against migrated PostgreSQL", () => 
         `;
         expect(replyEvent!.summary).toEqual(JSON.parse(JSON.stringify(reply.data.replySummary)));
 
+        const [imageTarget] = await fixture.harness.postgres`
+          insert into public.chat_message (
+            conversation_id,
+            sender_profile_id,
+            message_type,
+            content,
+            attachments
+          )
+          values (
+            ${fixture.conversationId},
+            ${fixture.profileTwoId},
+            'image',
+            null,
+            '[]'::jsonb
+          )
+          returning id
+        `;
+        const imageReply = await sendDirect({
+          fixture,
+          replyToMessageId: imageTarget!.id,
+          text: "Image reply",
+        });
+        expect(imageReply.ok).toBeTrue();
+        if (!imageReply.ok) throw new Error(imageReply.message);
+        expect(imageReply.data.replySummary).toEqual({
+          messageId: imageTarget!.id,
+          senderProfileId: fixture.profileTwoId,
+          messageType: "image",
+          state: "available",
+          preview: { kind: "image" },
+        });
+
+        const malformedReplyId = randomUUID();
+        await fixture.harness.postgres`
+          insert into public.chat_message (
+            id,
+            conversation_id,
+            sender_profile_id,
+            message_type,
+            content,
+            reply_to_message_id,
+            reply_summary
+          )
+          values (
+            ${malformedReplyId},
+            ${fixture.conversationId},
+            ${fixture.profileOneId},
+            'text',
+            'Malformed legacy reply summary',
+            ${imageTarget!.id},
+            ${{
+              messageId: imageTarget!.id,
+              senderProfileId: fixture.profileTwoId,
+              messageType: "image",
+              state: "available",
+              preview: {},
+            }}
+          )
+        `;
+        const malformedMessages = await listChatMessages({
+          conversationId: fixture.conversationId,
+          profileId: fixture.profileOneId,
+          userId: fixture.userOneId,
+        });
+        expect(malformedMessages.ok).toBeTrue();
+        if (!malformedMessages.ok) throw new Error(malformedMessages.message);
+        const malformedSummary = malformedMessages.data.data.find(
+          ({ id }) => id === malformedReplyId,
+        )?.replySummary;
+        expect(malformedSummary).toEqual({
+          messageId: imageTarget!.id,
+          senderProfileId: fixture.profileTwoId,
+          messageType: "image",
+          state: "unavailable",
+        });
+        expect(hasOwn(malformedSummary!, "preview")).toBeFalse();
+
         await fixture.harness.postgres`
           update public.chat_message
           set deleted_at = clock_timestamp()
@@ -1029,15 +1111,17 @@ describe("F4 transactional chat correctness against migrated PostgreSQL", () => 
         });
         expect(messages.ok).toBeTrue();
         if (!messages.ok) throw new Error(messages.message);
-        expect(
-          messages.data.data.find(({ id }) => id === reply.data.id)?.replySummary,
-        ).toMatchObject({
+        const deletedSummary = messages.data.data.find(
+          ({ id }) => id === reply.data.id,
+        )?.replySummary;
+        expect(deletedSummary).toEqual({
           messageId: target.data.id,
           senderProfileId: fixture.profileTwoId,
           messageType: "text",
           state: "deleted",
-          preview: null,
         });
+        expect(hasOwn(deletedSummary!, "preview")).toBeFalse();
+        expect(JSON.stringify(deletedSummary)).not.toContain('"preview"');
 
         await fixture.harness.postgres`
           delete from public.chat_message where id = ${target.data.id}
@@ -1048,15 +1132,17 @@ describe("F4 transactional chat correctness against migrated PostgreSQL", () => 
           userId: fixture.userOneId,
         });
         if (!messages.ok) throw new Error(messages.message);
-        expect(
-          messages.data.data.find(({ id }) => id === reply.data.id)?.replySummary,
-        ).toMatchObject({
+        const unavailableSummary = messages.data.data.find(
+          ({ id }) => id === reply.data.id,
+        )?.replySummary;
+        expect(unavailableSummary).toEqual({
           messageId: target.data.id,
           senderProfileId: fixture.profileTwoId,
           messageType: "text",
           state: "unavailable",
-          preview: null,
         });
+        expect(hasOwn(unavailableSummary!, "preview")).toBeFalse();
+        expect(JSON.stringify(unavailableSummary)).not.toContain('"preview"');
 
         const incoming = [];
         for (const text of ["Incoming one", "Incoming two", "Incoming three"]) {
@@ -1237,6 +1323,123 @@ describe("F4 transactional chat correctness against migrated PostgreSQL", () => 
           profileId: fixture.profileOneId,
           count: 0,
         });
+      } finally {
+        await cleanupFixture(fixture);
+      }
+    },
+    30_000,
+  );
+
+  integrationTest(
+    "normalizes only mutable legacy reply-summary JSONB with the forward migration",
+    async () => {
+      const fixture = await createMatchedFixture("transactional_chat_reply_migration");
+      try {
+        const rowIds = {
+          availableObject: randomUUID(),
+          availableNull: randomUUID(),
+          availableMissing: randomUUID(),
+          availableInvalid: randomUUID(),
+          deleted: randomUUID(),
+          unavailable: randomUUID(),
+          nonObject: randomUUID(),
+        };
+        const identity = {
+          messageId: randomUUID(),
+          senderProfileId: fixture.profileTwoId,
+          messageType: "text",
+        };
+        const summaries = {
+          availableObject: {
+            ...identity,
+            state: "available",
+            preview: { kind: "text", text: "preserved", truncated: false },
+          },
+          availableNull: { ...identity, state: "available", preview: null },
+          availableMissing: { ...identity, state: "available" },
+          availableInvalid: { ...identity, state: "available", preview: "invalid" },
+          deleted: { ...identity, state: "deleted", preview: null },
+          unavailable: {
+            ...identity,
+            state: "unavailable",
+            preview: { kind: "text", text: "remove me", truncated: false },
+          },
+        };
+
+        for (const [shape, id] of Object.entries(rowIds)) {
+          const replySummary =
+            shape === "nonObject" ? ["guarded"] : summaries[shape as keyof typeof summaries];
+          await fixture.harness.postgres`
+            insert into public.chat_message (
+              id,
+              conversation_id,
+              sender_profile_id,
+              message_type,
+              content,
+              reply_summary
+            )
+            values (
+              ${id},
+              ${fixture.conversationId},
+              ${fixture.profileOneId},
+              'text',
+              ${`migration fixture ${shape}`},
+              ${replySummary}
+            )
+          `;
+        }
+
+        const migrationSql = await Bun.file(
+          new URL(
+            "../../drizzle/20260723233434_chat_reply_summary_preview_optional/migration.sql",
+            import.meta.url,
+          ),
+        ).text();
+        await fixture.harness.postgres.unsafe(migrationSql);
+        const firstPass = (await fixture.harness.postgres`
+          select id, reply_summary as "replySummary"
+          from public.chat_message
+          where id in (
+            ${rowIds.availableObject},
+            ${rowIds.availableNull},
+            ${rowIds.availableMissing},
+            ${rowIds.availableInvalid},
+            ${rowIds.deleted},
+            ${rowIds.unavailable},
+            ${rowIds.nonObject}
+          )
+          order by id
+        `) as Array<{ id: string; replySummary: unknown }>;
+
+        await fixture.harness.postgres.unsafe(migrationSql);
+        const secondPass = (await fixture.harness.postgres`
+          select id, reply_summary as "replySummary"
+          from public.chat_message
+          where id in (
+            ${rowIds.availableObject},
+            ${rowIds.availableNull},
+            ${rowIds.availableMissing},
+            ${rowIds.availableInvalid},
+            ${rowIds.deleted},
+            ${rowIds.unavailable},
+            ${rowIds.nonObject}
+          )
+          order by id
+        `) as Array<{ id: string; replySummary: unknown }>;
+        expect(secondPass).toEqual(firstPass);
+
+        const byId = new Map(firstPass.map((row) => [row.id, row.replySummary]));
+        expect(byId.get(rowIds.availableObject)).toEqual(summaries.availableObject);
+        for (const id of [rowIds.availableNull, rowIds.availableMissing, rowIds.availableInvalid]) {
+          const summary = byId.get(id) as Record<string, unknown>;
+          expect(summary.state).toBe("unavailable");
+          expect(hasOwn(summary, "preview")).toBeFalse();
+        }
+        for (const id of [rowIds.deleted, rowIds.unavailable]) {
+          const summary = byId.get(id) as Record<string, unknown>;
+          expect(hasOwn(summary, "preview")).toBeFalse();
+        }
+        expect(byId.get(rowIds.nonObject)).toEqual(["guarded"]);
       } finally {
         await cleanupFixture(fixture);
       }

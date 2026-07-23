@@ -390,9 +390,16 @@ describe("application DTO contract", () => {
     const message = applicationDocument.components.schemas.ChatMessage;
     expect(message.required).toContain("replySummary");
     expect(message.properties.replySummary.type).toEqual(["object", "null"]);
-    expect(message.properties.replySummary.properties.preview.oneOf).toContainEqual({
-      type: "null",
+    expect(message.properties.replySummary.required).not.toContain("preview");
+    expect(message.properties.replySummary.properties.preview).toEqual({
+      $ref: "#/components/schemas/ChatMessageReplySummaryPreview",
     });
+    expect(JSON.stringify(message.properties.replySummary.properties.preview)).not.toContain(
+      '"type":"null"',
+    );
+    expect(
+      applicationDocument.components.schemas.ChatMessageReplySummaryPreview.anyOf,
+    ).toHaveLength(2);
     const conversation = applicationDocument.components.schemas.ChatConversation;
     expect(conversation.required).toContain("participantReadPositions");
     expect(conversation.properties.participantReadPositions).toMatchObject({
