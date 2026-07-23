@@ -1,12 +1,32 @@
 # Euphoria API
 
 ## Development
+
+Install the locked dependencies:
+
+```bash
+bun install --frozen-lockfile
+```
+
 To start the development server run:
+
 ```bash
 bun dev
 ```
 
 Open http://localhost:3000/ with your browser to see the result.
+
+### Backend v2 architecture
+
+[`docs/backend-v2/PLAN.md`](docs/backend-v2/PLAN.md) is the canonical dependency-ordered Backend v2
+plan. Its accepted ADRs define the PostgreSQL/Redis boundary, durable realtime recovery, profile
+ownership, notification/push semantics, and cursor policy.
+
+PostgreSQL is canonical for domain state and will own durable events, sequences, idempotency, and
+delivery jobs. Redis is reserved for shared ephemeral coordination: cross-node fan-out,
+connection/subscription routing, expiring presence/typing leases, and session-revocation signals.
+Redis is not a canonical domain store. The current production runtime does not use Redis yet; chat
+and notification socket hubs remain process-local until the later realtime milestone.
 
 ### OpenAPI contracts
 
@@ -67,8 +87,9 @@ APNs uses token-based authentication over a reused HTTP/2 connection. `APNS_TOPI
 required: this repository does not contain enough authoritative client configuration to safely
 assume `io.martiancode.Pluriel`. Supply the `.p8` key through `APNS_PRIVATE_KEY`, preserving PEM
 newlines (escaped `\n` is accepted), or through base64 in `APNS_PRIVATE_KEY_BASE64`. Never commit the
-key or either value. If no APNs registrations are delivered, APNs configuration is not loaded, so
-Expo-only deployments remain compatible.
+key or either value. If there are no APNs provider attempts, APNs configuration is not loaded, so
+Expo-only deployments remain compatible. An APNs `200` or successful Expo ticket confirms provider
+acceptance only; it does not confirm that a device displayed or received the notification.
 
 APNs throttling, transport errors, and server failures remain `pending` with `next_attempt_at` set.
 This is the retry-worker seam; the repository does not currently include a retry worker.
@@ -81,6 +102,43 @@ docker compose up --build
 ```
 
 The API runs on port `3000` and Postgres on `5432`. Database migrations are applied automatically on startup.
+
+### PostgreSQL + Redis integration tests
+
+The integration profile starts a dedicated PostGIS/PostgreSQL database and nonpersistent Redis
+instance. It does not start the API or reuse the development database:
+
+```bash
+bun run test:integration:services:up
+bun run test:integration
+bun run test:integration:services:down
+```
+
+The services default to:
+
+- PostgreSQL: `postgresql://postgres:postgres@127.0.0.1:55432/euphoria_integration`
+- Redis: `redis://127.0.0.1:56379`
+
+`test:integration` applies the existing Drizzle migrations and runs the PostgreSQL/Redis smoke test.
+Each test harness creates a random PostgreSQL schema and namespaced Redis keys, then removes only
+those resources; the smoke test also gives its key a short TTL. The harness refuses a database
+name that does not contain `integration`.
+
+The repository's PostGIS 17 image currently publishes an AMD64 runtime, so the integration service
+declares `linux/amd64`; Apple Silicon Docker runtimes must have x86 emulation enabled.
+
+Override the defaults with `INTEGRATION_DATABASE_URL` and `INTEGRATION_REDIS_URL`. If host ports
+must change, set `INTEGRATION_POSTGRES_PORT`/`INTEGRATION_REDIS_PORT` for Docker Compose and provide
+matching URLs to the test process.
+
+The ordinary suite remains:
+
+```bash
+bun run test
+```
+
+The integration smoke test is skipped by that command unless `RUN_INTEGRATION_TESTS=1`; use the
+documented integration command so migrations and service configuration are applied consistently.
 
 ### Environment variables
 Set these via a `.env` file or directly in `docker-compose.yml`:
