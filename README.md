@@ -53,6 +53,37 @@ To seed 10,000 standalone Helsinki and Espoo dating profiles for feed testing:
 bun run db:seed:profiles
 ```
 
+### Pagination cursors
+
+Feed, conversation, message, and notification lists use the same versioned opaque cursor policy.
+Clients must store and return `cursor` unchanged and must not parse, construct, compare, or move it
+between list resources, profiles/users, conversations, paging directions, or filter sets.
+
+The current `c1` cursor authenticates its protected payload with HMAC-SHA-256. The payload carries
+the resource, `next` direction, complete normalized sort tuple, and a keyed fingerprint of the
+authorization scope and membership/order filters. Raw scope and filter values are not stored in
+the fingerprint. Timestamp positions use PostgreSQL epoch microseconds so continuation does not
+lose database precision when response dates are represented by JavaScript `Date`.
+
+All malformed, tampered, unsupported-version, wrong-resource, wrong-direction, wrong-scope, and
+filter-mismatched cursors return:
+
+```json
+{
+  "code": "invalid_cursor",
+  "message": "Cursor is invalid for this request"
+}
+```
+
+with HTTP `400`.
+
+`CURSOR_SIGNING_SECRET` is the active signing key. During rotation, put older accepted keys in the
+comma-separated `CURSOR_SIGNING_PREVIOUS_SECRETS` value; new cursors use only the active key. For a
+compatibility rollout, deployments without `CURSOR_SIGNING_SECRET` fall back to
+`BETTER_AUTH_SECRET`. A dedicated random cursor secret is recommended. The F1 wire format does not
+accept legacy numeric feed cursors or legacy date-time cursors, so clients with a stored legacy
+cursor must restart that list from its first page.
+
 ### Push notifications
 
 Existing Expo clients may continue to register without a `provider`; omission means `expo`:
@@ -119,10 +150,12 @@ The services default to:
 - PostgreSQL: `postgresql://postgres:postgres@127.0.0.1:55432/euphoria_integration`
 - Redis: `redis://127.0.0.1:56379`
 
-`test:integration` applies the existing Drizzle migrations and runs the PostgreSQL/Redis smoke test.
-Each test harness creates a random PostgreSQL schema and namespaced Redis keys, then removes only
-those resources; the smoke test also gives its key a short TTL. The harness refuses a database
-name that does not contain `integration`.
+`test:integration` applies the existing Drizzle migrations and runs the PostgreSQL/Redis smoke test
+plus tie-heavy cursor traversal tests against the migrated application tables. Each test harness
+creates a random PostgreSQL schema and namespaced Redis keys, then removes only those resources;
+application fixtures use explicit unique IDs and are removed after the cursor suite. The smoke test
+also gives its key a short TTL. The harness refuses a database name that does not contain
+`integration`.
 
 The repository's PostGIS 17 image currently publishes an AMD64 runtime, so the integration service
 declares `linux/amd64`; Apple Silicon Docker runtimes must have x86 emulation enabled.
@@ -148,6 +181,8 @@ Set these via a `.env` file or directly in `docker-compose.yml`:
 | `DATABASE_URL`                    | `postgresql://...` (in compose) | Postgres connection                                                               |
 | `BETTER_AUTH_SECRET`              | `change-me`                     | Better Auth secret key                                                            |
 | `BETTER_AUTH_URL`                 | `http://localhost:3000`         | Better Auth base URL                                                              |
+| `CURSOR_SIGNING_SECRET`           | Falls back to auth secret       | Active HMAC key for opaque application cursors; use a dedicated random value       |
+| `CURSOR_SIGNING_PREVIOUS_SECRETS` |                                 | Optional comma-separated previous cursor keys accepted during rotation             |
 | `EXPO_ACCESS_TOKEN`               |                                 | Optional Expo push access token                                                    |
 | `APNS_TEAM_ID`                    |                                 | Apple Developer team ID                                                           |
 | `APNS_KEY_ID`                     |                                 | APNs authentication key ID                                                        |

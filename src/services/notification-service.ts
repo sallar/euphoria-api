@@ -1,6 +1,6 @@
 import type { SQL } from "drizzle-orm";
 
-import { and, desc, eq, isNull, lt, ne, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, lt, ne, or, sql } from "drizzle-orm";
 
 import type { Notification, PushToken } from "@/models/notification";
 
@@ -11,6 +11,7 @@ import {
   notificationTypeValues,
   userPushToken,
 } from "@/db/notification-schema";
+import { decodeCursor, encodeCursor } from "@/lib/cursor";
 import { db } from "@/lib/db";
 
 import type { PushDeliveryAttempt, PushDeliveryTarget, PushProviderRegistry } from "./push/types";
@@ -159,22 +160,58 @@ export const listNotifications = async ({
     isNull(notification.archivedAt),
   ];
 
-  if (cursor) conditions.push(lt(notification.createdAt, new Date(cursor)));
-  if (unreadOnly) conditions.push(isNull(notification.readAt));
+  const normalizedUnreadOnly = Boolean(unreadOnly);
+  const context = { userId, unreadOnly: normalizedUnreadOnly };
+  const cursorSort = cursor
+    ? decodeCursor({
+        cursor,
+        resource: "notifications",
+        direction: "next",
+        context,
+      })
+    : null;
+  if (cursorSort) {
+    const cursorCreatedAt = sql`to_timestamp(${cursorSort.createdAtMicros}::numeric / 1000000)`;
+    conditions.push(
+      or(
+        lt(notification.createdAt, cursorCreatedAt),
+        and(
+          eq(notification.createdAt, cursorCreatedAt),
+          lt(notification.id, cursorSort.notificationId),
+        ),
+      )!,
+    );
+  }
+  if (normalizedUnreadOnly) conditions.push(isNull(notification.readAt));
 
   const rows = await db
-    .select(notificationFields)
+    .select({
+      ...notificationFields,
+      cursorCreatedAtMicros: sql<string>`((extract(epoch from ${notification.createdAt}) * 1000000)::bigint)::text`,
+    })
     .from(notification)
     .where(and(...conditions))
     .orderBy(desc(notification.createdAt), desc(notification.id))
     .limit(pageSize + 1);
 
   const data = rows.slice(0, pageSize).map(toNotification);
-  const next = rows[pageSize];
+  const lastReturned = rows[Math.min(rows.length, pageSize) - 1];
+  const nextCursor =
+    rows.length > pageSize && lastReturned
+      ? encodeCursor({
+          resource: "notifications",
+          direction: "next",
+          context,
+          sort: {
+            createdAtMicros: lastReturned.cursorCreatedAtMicros,
+            notificationId: lastReturned.id,
+          },
+        })
+      : null;
 
   return {
     data,
-    cursor: next?.createdAt.toISOString() ?? null,
+    cursor: nextCursor,
   };
 };
 

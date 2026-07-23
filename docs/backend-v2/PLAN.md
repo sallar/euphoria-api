@@ -39,8 +39,8 @@ bearer authentication and restricts the target to the authenticated user.
 | `src/services/chat-sockets.ts` and `notification-sockets.ts` keep sockets, subscriptions, and presence in process-local maps keyed by socket/profile/user, not session ID.           | Current realtime cannot provide cross-node fan-out, session-wide revocation, leases, or replay.                                                     |
 | Socket code has no subscription bound, command rate limit, output queue/backpressure policy, node heartbeat, or stale-node cleanup.                                                  | Distributed realtime needs an explicit safety and lifecycle milestone, not only Redis pub/sub.                                                      |
 | `src/lib/asyncapi-document.ts` explicitly advertises no durable ID, cursor, or replay.                                                                                               | Protocol v2 must be additive and versioned; current clients still require REST reconciliation.                                                      |
-| Feed sorts by `(distance, id)` but carries distance only. Conversations, messages, and notifications sort by `(timestamp, id)` but carry timestamp only.                             | Every list needs a versioned full-tuple cursor.                                                                                                     |
-| Conversation, message, and notification list code uses the `limit + 1` row as the next cursor.                                                                                       | Those APIs can skip the lookahead row; the cursor must come from the last returned row.                                                             |
+| Feed, conversation, message, and notification pagination now uses one versioned HMAC-protected cursor codec with full normalized sort tuples and keyed scope/filter fingerprints.    | F1 cursor integrity is implemented; clients treat every cursor as an opaque string and restart lists that retained a legacy numeric/date cursor.    |
+| Every paginated query uses a strict full-tuple predicate, fetches `limit + 1`, and derives a next cursor from the returned boundary row only when lookahead proves another page.     | Tie-heavy migrated-PostgreSQL traversal tests cover page-size-one boundaries, final/empty pages, and exactly-once traversal.                        |
 | `profileRoutes` serializes creation and returns `409` if the user already has a profile, while `profile_user` is many-to-many and list bootstrap returns an array.                   | The current product is zero/one profile per user but the database does not fully enforce that invariant.                                            |
 | `clientMessageId` is optional WebSocket correlation, is absent from the message table and REST insert, and is included in a message event broadcast to every subscriber.             | Persisted idempotency must cover REST and WebSocket, while correlation/acknowledgement stays origin-only.                                           |
 | Message access/match checks happen before the message transaction; notification creation and socket broadcasts happen after it.                                                      | Message, read/conversation mutation, canonical notification state, events, jobs, and idempotency are not atomic today.                              |
@@ -152,9 +152,11 @@ Acceptance gates:
 - Type-check, format-check, and lint pass.
 - APNs tests and existing public contracts are unchanged.
 
-### F1. Cursor integrity (recommended next)
+### F1. Cursor integrity (complete)
 
 Dependencies: F0 only.
+
+Status: completed 2026-07-23.
 
 - Implement one shared cursor codec with resource/version, full sort tuple, direction, and a
   scope/filter fingerprint.
@@ -173,6 +175,22 @@ Acceptance gates:
 - Cursor values reveal no contract the client must interpret.
 - OpenAPI changes are reviewed and both backend contracts validate.
 - No iOS snapshot is regenerated in this backend task.
+
+Implementation record:
+
+- Cursor wire version `c1` signs a protected version/resource/direction/full-tuple/fingerprint
+  payload with HMAC-SHA-256. Context fingerprints use a separate keyed HMAC domain and contain no
+  raw scope/filter values.
+- Feed fingerprints user, requesting profile, radius, normalized age bounds, and optional profile
+  type. Conversations fingerprint user/profile; messages fingerprint user/profile/conversation;
+  notifications fingerprint user and normalized `unreadOnly`.
+- Descending timestamp tuples store PostgreSQL epoch microseconds plus the UUID tie-breaker; message
+  rows remain chronological inside each returned page.
+- `CURSOR_SIGNING_SECRET` is primary, comma-separated
+  `CURSOR_SIGNING_PREVIOUS_SECRETS` supports verification during key rotation, and
+  `BETTER_AUTH_SECRET` is the compatibility fallback when no dedicated primary is configured.
+- Legacy numeric/date-time cursors intentionally return the stable `400 invalid_cursor` response;
+  clients retaining one restart that list. All cursor query/response schemas are opaque strings.
 
 ### F2. Profile ownership invariant
 
@@ -499,7 +517,7 @@ smuggled into F1 or the core Backend v2 rollout.
 | Audited concern/current workaround                                         | Named milestone and acceptance gate                                                                                                                                                |
 | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | APNs described as absent in stale iOS text                                 | Already implemented and protected by F0 regression gates; F5 adds durable workers, receipt semantics, invalid-token handling, and sandbox/production physical-device verification. |
-| Incomplete/skipping pagination and defensive client deduplication          | F1 tie-heavy complete-traversal and last-returned-row cursor gates.                                                                                                                |
+| Incomplete/skipping pagination and defensive client deduplication          | Closed by F1 tie-heavy complete traversal, strict full-tuple predicates, and returned-boundary cursor tests; client workaround removal still follows explicit client rollout.      |
 | Unsafe resend and no durable message outbox                                | F3 substrate plus F4 required cross-transport idempotency/fingerprint/atomicity gates.                                                                                             |
 | Process-local realtime and reconnect-wide REST reconciliation              | F6 multi-node, Redis-outage, replay, handoff, and no-canonical-Redis gates; F7 removes the workaround only after client rollout.                                                   |
 | Missing typing cleanup/local expiry                                        | F6 TTL/final-lease aggregate `typing=false` and stale-node cleanup gates.                                                                                                          |
@@ -522,7 +540,7 @@ smuggled into F1 or the core Backend v2 rollout.
 
 ## Implementation orchestration
 
-1. Implement F1 composite cursors next and only F1.
+1. F1 composite cursors are complete; preserve their shared codec and traversal regression gates.
 2. Complete F2 before introducing stable profile-scoped event ownership.
 3. Implement F3 as reusable PostgreSQL substrate without changing socket protocol.
 4. Implement F4 transactional chat correctness before relying on chat events/jobs in notification
@@ -590,8 +608,9 @@ should use per-suite schemas or explicit fixtures for mutable test state. Tests 
 
 ## Next task handoff
 
-The next task should implement F1 only. Start with a shared cursor codec and integration fixtures
-that force equal distances/timestamps, then migrate feed, conversations, messages, and
-notifications together so the contract has one cursor policy. Do not mix profile ownership, F3
-substrate, F4 chat correctness, F5 notifications/APNs operations, F6 realtime/Redis, P1-P5 product
-work, or iOS changes into that task.
+The next orchestrated milestone should implement F2 only. Start with an audit of production
+profile-membership cardinality and an explicit remediation decision before enforcing zero/one
+active profile ownership at service and database boundaries. Preserve the completed F1 cursor
+policy and its regression fixtures. Do not mix F3 substrate, F4 chat correctness, F5
+notifications/APNs operations, F6 realtime/Redis, P1-P5 product work, or iOS changes into that
+task.

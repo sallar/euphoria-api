@@ -286,7 +286,7 @@ describe("application DTO contract", () => {
       radius: "number",
       minAge: "integer",
       maxAge: "integer",
-      cursor: "number",
+      cursor: "string",
       limit: "integer",
       unreadOnly: "boolean",
     };
@@ -294,8 +294,8 @@ describe("application DTO contract", () => {
     for (const { operation } of getOperations(applicationDocument)) {
       for (const parameter of operation.parameters ?? []) {
         if (parameter.in !== "query" || expectedTypes[parameter.name] === undefined) continue;
-        if (parameter.name === "cursor" && parameter.schema.format === "date-time") continue;
         expect(parameter.schema.type).toBe(expectedTypes[parameter.name]);
+        if (parameter.name === "cursor") expect(parameter.schema.format).toBeUndefined();
       }
     }
   });

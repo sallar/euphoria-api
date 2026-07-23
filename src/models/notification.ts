@@ -1,5 +1,6 @@
 import Elysia, { t } from "elysia";
 
+import { OpaqueCursor } from "./cursor";
 import {
   apnsEnvironmentSchema,
   devicePlatformSchema,
@@ -35,7 +36,7 @@ export const Notification = t.Object({
 
 const NotificationListResponse = t.Object({
   data: t.Array(Notification),
-  cursor: t.Nullable(t.String({ format: "date-time" })),
+  cursor: t.Nullable(OpaqueCursor),
 });
 
 const NotificationUnreadCount = t.Object({

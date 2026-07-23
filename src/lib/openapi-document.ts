@@ -27,7 +27,7 @@ const errorStatusDescriptions: Record<string, string> = {
 export const openApiInfo = {
   title: "Euphoria API",
   description: "Canonical REST API contract for Euphoria clients",
-  version: "2026-07-16",
+  version: "2026-07-23",
 } as const;
 
 export const realtimeEnvelopeRegistries = {

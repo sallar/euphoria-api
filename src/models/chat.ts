@@ -1,5 +1,6 @@
 import Elysia, { t } from "elysia";
 
+import { OpaqueCursor } from "./cursor";
 import { chatMessageTypeSchema, profileTypeSchema } from "./enums";
 import {
   REALTIME_PROTOCOL_VERSION,
@@ -90,12 +91,12 @@ export const ChatPresence = t.Object({
 
 const ChatConversationListResponse = t.Object({
   data: t.Array(ChatConversation),
-  cursor: t.Nullable(t.String({ format: "date-time" })),
+  cursor: t.Nullable(OpaqueCursor),
 });
 
 const ChatMessageListResponse = t.Object({
   data: t.Array(ChatMessage),
-  cursor: t.Nullable(t.String({ format: "date-time" })),
+  cursor: t.Nullable(OpaqueCursor),
 });
 
 const ChatMessageInsert = t.Object({

@@ -1,6 +1,7 @@
 import Elysia, { t } from "elysia";
 
 import { commonModel } from "@/models/common";
+import { OpaqueCursor } from "@/models/cursor";
 import { notificationModel, PushToken } from "@/models/notification";
 import { REALTIME_PROTOCOL_VERSION } from "@/models/realtime";
 import { auth } from "@/plugins/auth";
@@ -68,12 +69,13 @@ export const notificationRoutes = new Elysia({
     {
       auth: true,
       query: t.Object({
-        cursor: t.Optional(t.String({ format: "date-time" })),
+        cursor: t.Optional(OpaqueCursor),
         limit: t.Optional(t.Numeric({ minimum: 1, maximum: 100, multipleOf: 1 })),
         unreadOnly: t.Optional(t.BooleanString()),
       }),
       response: {
         200: "NotificationListResponse",
+        400: "ApiErrorResponse",
       },
       detail: {
         operationId: "listNotifications",
