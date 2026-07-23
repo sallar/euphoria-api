@@ -1,0 +1,5732 @@
+{
+  "version": "8",
+  "dialect": "postgres",
+  "id": "e5ec5795-c2b9-4a76-b1c5-eebcca0af0e6",
+  "prevIds": [
+    "f2b3f2f6-1048-430b-9f1c-f1c78faec357"
+  ],
+  "ddl": [
+    {
+      "values": [
+        "man",
+        "woman",
+        "non_binary",
+        "intersex",
+        "custom",
+        "cis_man",
+        "cis_woman",
+        "trans_man",
+        "trans_woman",
+        "transmasculine",
+        "transfeminine",
+        "agender",
+        "androgynous",
+        "bigender",
+        "demiboy",
+        "demigirl",
+        "genderfluid",
+        "genderqueer",
+        "gender_nonconforming",
+        "gender_questioning",
+        "gender_variant",
+        "gendervoid",
+        "neutrois",
+        "pangender",
+        "polygender",
+        "two_spirit",
+        "enby",
+        "maverique",
+        "aporagender",
+        "xenogender",
+        "cultural_gender"
+      ],
+      "name": "profile_gender",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "heterosexual",
+        "heteroflexible",
+        "homosexual",
+        "gay",
+        "lesbian",
+        "homoflexible",
+        "bisexual",
+        "bi_curious",
+        "pansexual",
+        "polysexual",
+        "omnisexual",
+        "skoliosexual",
+        "queer",
+        "sapiosexual",
+        "androsexual",
+        "gynesexual",
+        "androgynosexual",
+        "asexual",
+        "demisexual",
+        "graysexual",
+        "aceflux",
+        "acespike",
+        "fictosexual",
+        "fraysexual",
+        "lithosexual",
+        "reciprosexual",
+        "aegosexual",
+        "cupiosexual",
+        "idemsexual",
+        "quoisexual",
+        "apothisexual",
+        "aromantic",
+        "demiromantic",
+        "grayromantic",
+        "biromantic",
+        "panromantic",
+        "heteroromantic",
+        "homoromantic",
+        "autosexual",
+        "objectumsexual",
+        "custom"
+      ],
+      "name": "profile_orientation",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "like",
+        "unlike"
+      ],
+      "name": "profile_reaction_type",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "monogamous",
+        "monogamish",
+        "ethical_non_monogamy",
+        "polyamorous",
+        "polyfidelity",
+        "relationship_anarchy",
+        "open_relationship",
+        "swinging",
+        "casual",
+        "friends_with_benefits",
+        "dating",
+        "long_term",
+        "serious",
+        "married",
+        "engaged",
+        "nesting_partner",
+        "primary_partner",
+        "secondary_partner",
+        "metamour",
+        "solo_poly",
+        "kitchen_table_poly",
+        "parallel_poly",
+        "hierarchical_poly",
+        "non_hierarchical",
+        "unicorn_hunting",
+        "couple",
+        "triad",
+        "quad",
+        "group",
+        "one_on_one_only",
+        "play_partner",
+        "casual_play",
+        "friendship",
+        "platonic",
+        "queerplatonic",
+        "custom"
+      ],
+      "name": "profile_relationship_type",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "solo",
+        "couple",
+        "group"
+      ],
+      "name": "profile_type",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "owner",
+        "member"
+      ],
+      "name": "profile_user_role",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "text",
+        "image"
+      ],
+      "name": "chat_message_type",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "development",
+        "production"
+      ],
+      "name": "apns_environment",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "ios",
+        "android",
+        "web"
+      ],
+      "name": "device_platform",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "in_app",
+        "push"
+      ],
+      "name": "notification_channel",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "pending",
+        "delivered",
+        "failed",
+        "skipped"
+      ],
+      "name": "notification_delivery_status",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "profile_like",
+        "profile_match",
+        "message",
+        "system"
+      ],
+      "name": "notification_type",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "expo",
+        "apns"
+      ],
+      "name": "push_provider",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "succeeded",
+        "rejected"
+      ],
+      "name": "command_idempotency_outcome",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "in_progress",
+        "completed"
+      ],
+      "name": "command_idempotency_state",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "leased",
+        "completed",
+        "retry_scheduled",
+        "lease_expired",
+        "dead_lettered_failed",
+        "dead_lettered_unknown"
+      ],
+      "name": "delivery_job_attempt_outcome",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "failed",
+        "unknown"
+      ],
+      "name": "delivery_job_dead_letter_outcome",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "permanent_failure",
+        "attempts_exhausted",
+        "lease_expired_after_final_claim"
+      ],
+      "name": "delivery_job_dead_letter_reason",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "pending",
+        "leased",
+        "completed",
+        "dead_letter"
+      ],
+      "name": "delivery_job_state",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "chat-profile",
+        "chat-conversation",
+        "notification-user"
+      ],
+      "name": "durable_event_scope_kind",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "account",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "session",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "user",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "verification",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "profile",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "profile_photo",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "profile_reaction",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "profile_user",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "chat_conversation",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "chat_conversation_read_state",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "chat_message",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "chat_message_reaction",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "notification",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "notification_delivery",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "user_push_token",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "command_idempotency",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "delivery_job",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "delivery_job_attempt",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "delivery_job_manual_requeue",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "durable_event",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "durable_event_scope",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "account"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "account_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "account"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "provider_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "account"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "account"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "access_token",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "account"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "refresh_token",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "account"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "id_token",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "account"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "access_token_expires_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "account"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "refresh_token_expires_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "account"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "scope",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "account"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "password",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "account"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "account"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "account"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "session"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "expires_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "session"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "token",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "session"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "session"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "session"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "ip_address",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "session"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "user_agent",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "session"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "session"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "email",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "email_verified",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "image",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "verification"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "identifier",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "verification"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "value",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "verification"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "expires_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "verification"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "verification"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "verification"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "deleted_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "last_seen_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "type": "profile_type",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "profile_type",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "type": "varchar(120)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "bio",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "type": "profile_gender",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "gender",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "type": "profile_gender",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 1,
+      "default": "'{}'",
+      "generated": null,
+      "identity": null,
+      "name": "gender_tags",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "type": "profile_gender",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 1,
+      "default": "'{}'",
+      "generated": null,
+      "identity": null,
+      "name": "gender_interests",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "type": "profile_orientation",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "orientation",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "type": "profile_orientation",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 1,
+      "default": "'{}'",
+      "generated": null,
+      "identity": null,
+      "name": "orientation_interests",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "type": "profile_relationship_type",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 1,
+      "default": "'{}'",
+      "generated": null,
+      "identity": null,
+      "name": "relationship_types",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "type": "geometry(point,4326)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "location",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "type": "varchar(2)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "country",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "date_of_birth",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "hidden",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile_photo"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "profile_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile_photo"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile_photo"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile_photo"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "deleted_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile_photo"
+    },
+    {
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "object_bucket",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile_photo"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "object_key",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile_photo"
+    },
+    {
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "hash",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile_photo"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "name": "position",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile_photo"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "connection_only",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile_photo"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "profile_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile_reaction"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "target_profile_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile_reaction"
+    },
+    {
+      "type": "profile_reaction_type",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reaction",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile_reaction"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile_reaction"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile_reaction"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "profile_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile_user"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile_user"
+    },
+    {
+      "type": "profile_user_role",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'member'",
+      "generated": null,
+      "identity": null,
+      "name": "role",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile_user"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "profile_user"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_conversation"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "profile_one_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_conversation"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "profile_two_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_conversation"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "last_message_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_conversation"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_conversation"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_conversation"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "conversation_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_conversation_read_state"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "profile_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_conversation_read_state"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "last_read_message_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_conversation_read_state"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "last_read_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_conversation_read_state"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_conversation_read_state"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_conversation_read_state"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_message"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "conversation_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_message"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "sender_profile_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_message"
+    },
+    {
+      "type": "chat_message_type",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'text'",
+      "generated": null,
+      "identity": null,
+      "name": "message_type",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_message"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "content",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_message"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'[]'",
+      "generated": null,
+      "identity": null,
+      "name": "attachments",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_message"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reply_to_message_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_message"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "edited_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_message"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "deleted_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_message"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_message"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_message"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "message_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_message_reaction"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "profile_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_message_reaction"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "emoji",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_message_reaction"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "chat_message_reaction"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "recipient_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "actor_profile_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "related_profile_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification"
+    },
+    {
+      "type": "notification_type",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "type",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification"
+    },
+    {
+      "type": "varchar(140)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "title",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "body",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'{}'",
+      "generated": null,
+      "identity": null,
+      "name": "data",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "read_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "archived_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification_delivery"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "notification_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification_delivery"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "recipient_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification_delivery"
+    },
+    {
+      "type": "notification_channel",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "channel",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification_delivery"
+    },
+    {
+      "type": "notification_delivery_status",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'pending'",
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification_delivery"
+    },
+    {
+      "type": "push_provider",
+      "typeSchema": "public",
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "provider",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification_delivery"
+    },
+    {
+      "type": "apns_environment",
+      "typeSchema": "public",
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "apns_environment",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification_delivery"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "push_token_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification_delivery"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "name": "attempt_count",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification_delivery"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "last_attempt_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification_delivery"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "next_attempt_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification_delivery"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "delivered_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification_delivery"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "failed_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification_delivery"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "error",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification_delivery"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "provider_metadata",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification_delivery"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification_delivery"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "notification_delivery"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user_push_token"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user_push_token"
+    },
+    {
+      "type": "push_provider",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'expo'",
+      "generated": null,
+      "identity": null,
+      "name": "provider",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user_push_token"
+    },
+    {
+      "type": "apns_environment",
+      "typeSchema": "public",
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "apns_environment",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user_push_token"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "token",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user_push_token"
+    },
+    {
+      "type": "device_platform",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "platform",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user_push_token"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "device_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user_push_token"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "true",
+      "generated": null,
+      "identity": null,
+      "name": "enabled",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user_push_token"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "last_registered_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user_push_token"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "disabled_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user_push_token"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user_push_token"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "user_push_token"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "command_idempotency"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "actor_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "command_idempotency"
+    },
+    {
+      "type": "varchar(120)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "command_name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "command_idempotency"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "command_version",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "command_idempotency"
+    },
+    {
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "idempotency_key",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "command_idempotency"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "request_fingerprint",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "command_idempotency"
+    },
+    {
+      "type": "command_idempotency_state",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'in_progress'",
+      "generated": null,
+      "identity": null,
+      "name": "state",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "command_idempotency"
+    },
+    {
+      "type": "command_idempotency_outcome",
+      "typeSchema": "public",
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "outcome",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "command_idempotency"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "result",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "command_idempotency"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "result_reference",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "command_idempotency"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "command_idempotency"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "completed_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "command_idempotency"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "retention_expires_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "command_idempotency"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "command_idempotency"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "type": "varchar(120)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "job_kind",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "job_version",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "payload",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "type": "delivery_job_state",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'pending'",
+      "generated": null,
+      "identity": null,
+      "name": "state",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "available_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "max_attempts",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "name": "attempt_count",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "terminal_retention_seconds",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "type": "varchar(160)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "lease_owner",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "lease_token",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "leased_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "lease_expires_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "completed_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "dead_lettered_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "type": "delivery_job_dead_letter_reason",
+      "typeSchema": "public",
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "dead_letter_reason",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "type": "delivery_job_dead_letter_outcome",
+      "typeSchema": "public",
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "dead_letter_outcome",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "type": "varchar(100)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "last_failure_code",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "last_failure_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "retention_expires_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "name": "manual_requeue_count",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "lease_token",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job_attempt"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "job_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job_attempt"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "attempt_number",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job_attempt"
+    },
+    {
+      "type": "varchar(160)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "lease_owner",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job_attempt"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "leased_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job_attempt"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "lease_expires_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job_attempt"
+    },
+    {
+      "type": "delivery_job_attempt_outcome",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'leased'",
+      "generated": null,
+      "identity": null,
+      "name": "outcome",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job_attempt"
+    },
+    {
+      "type": "varchar(100)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "failure_code",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job_attempt"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "next_available_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job_attempt"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "finished_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job_attempt"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job_manual_requeue"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "job_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job_manual_requeue"
+    },
+    {
+      "type": "varchar(160)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "requested_by",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job_manual_requeue"
+    },
+    {
+      "type": "varchar(100)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reason_code",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job_manual_requeue"
+    },
+    {
+      "type": "delivery_job_dead_letter_reason",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "previous_dead_letter_reason",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job_manual_requeue"
+    },
+    {
+      "type": "delivery_job_dead_letter_outcome",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "previous_dead_letter_outcome",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job_manual_requeue"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "previous_attempt_count",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job_manual_requeue"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "next_max_attempts",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job_manual_requeue"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "next_available_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job_manual_requeue"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "delivery_job_manual_requeue"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "durable_event"
+    },
+    {
+      "type": "durable_event_scope_kind",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "scope_kind",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "durable_event"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "scope_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "durable_event"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "sequence",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "durable_event"
+    },
+    {
+      "type": "varchar(160)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "event_type",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "durable_event"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "event_version",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "durable_event"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "payload",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "durable_event"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "causal_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "durable_event"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "occurred_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "durable_event"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "committed_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "durable_event"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "retention_expires_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "durable_event"
+    },
+    {
+      "type": "durable_event_scope_kind",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "scope_kind",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "durable_event_scope"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "scope_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "durable_event_scope"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "name": "high_water_sequence",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "durable_event_scope"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "1",
+      "generated": null,
+      "identity": null,
+      "name": "retention_floor_sequence",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "durable_event_scope"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "durable_event_scope"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "durable_event_scope"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "user_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "account_userId_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "account"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "user_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "session_userId_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "session"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "identifier",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "verification_identifier_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "verification"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "country",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "hidden",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "deleted_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"deleted_at\" is null and \"hidden\" = false",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "profile_feed_visibility_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "location",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"deleted_at\" is null and \"hidden\" = false",
+      "with": "",
+      "method": "gist",
+      "concurrently": false,
+      "name": "profile_location_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "date_of_birth",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"deleted_at\" is null and \"hidden\" = false",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "profile_feed_birth_date_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "gender",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "orientation",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "date_of_birth",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"deleted_at\" is null and \"hidden\" = false",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "profile_feed_traits_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "last_seen_at",
+          "isExpression": false,
+          "asc": false,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "profile_last_seen_at_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "gender",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "profile_gender_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "gender_tags",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "gin",
+      "concurrently": false,
+      "name": "profile_gender_tags_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "gender_interests",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "gin",
+      "concurrently": false,
+      "name": "profile_gender_interests_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "orientation",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "profile_orientation_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "orientation_interests",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "gin",
+      "concurrently": false,
+      "name": "profile_orientation_interests_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "relationship_types",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "gin",
+      "concurrently": false,
+      "name": "profile_relationship_types_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "profile_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "profile_photo_profile_id_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "profile_photo"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "profile_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "position",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"deleted_at\" is null",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "profile_photo_gallery_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "profile_photo"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "profile_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "position",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"deleted_at\" is null and \"connection_only\" = false",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "profile_photo_public_gallery_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "profile_photo"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "profile_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "object_bucket",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "object_key",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": "\"deleted_at\" is null",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "profile_photo_profile_object_unique_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "profile_photo"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "profile_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "reaction",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "profile_reaction_profile_reaction_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "profile_reaction"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "target_profile_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "reaction",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "profile_reaction_target_reaction_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "profile_reaction"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "profile_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "profile_user_profile_id_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "profile_user"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "user_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "profile_user_user_id_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "profile_user"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "profile_one_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "profile_two_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "chat_conversation_profile_pair_unique_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "chat_conversation"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "profile_one_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "last_message_at",
+          "isExpression": false,
+          "asc": false,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": false,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "chat_conversation_profile_one_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "chat_conversation"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "profile_two_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "last_message_at",
+          "isExpression": false,
+          "asc": false,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": false,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "chat_conversation_profile_two_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "chat_conversation"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "profile_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "updated_at",
+          "isExpression": false,
+          "asc": false,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "chat_conversation_read_state_profile_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "chat_conversation_read_state"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "last_read_message_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "chat_conversation_read_state_last_read_message_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "chat_conversation_read_state"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "conversation_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": false,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "id",
+          "isExpression": false,
+          "asc": false,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "chat_message_conversation_created_at_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "chat_message"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "sender_profile_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "chat_message_sender_profile_id_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "chat_message"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "reply_to_message_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "chat_message_reply_to_message_id_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "chat_message"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "profile_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "chat_message_reaction_profile_id_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "chat_message_reaction"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "emoji",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "chat_message_reaction_emoji_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "chat_message_reaction"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "recipient_user_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": false,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "notification_recipient_created_at_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "notification"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "recipient_user_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": false,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"read_at\" is null and \"archived_at\" is null",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "notification_recipient_unread_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "notification"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "type",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "notification_type_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "notification"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "actor_profile_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "notification_actor_profile_id_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "notification"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "related_profile_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "notification_related_profile_id_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "notification"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "notification_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "notification_delivery_notification_id_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "notification_delivery"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "recipient_user_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": false,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "notification_delivery_recipient_created_at_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "notification_delivery"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "channel",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "status",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "next_attempt_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "notification_delivery_queue_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "notification_delivery"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "push_token_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "notification_delivery_push_token_id_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "notification_delivery"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "provider",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "token",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "user_push_token_provider_token_unique_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "user_push_token"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "provider",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "apns_environment",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "device_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": "\"apns_environment\" is not null and \"enabled\" = true",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "user_push_token_apns_installation_unique_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "user_push_token"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "user_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "enabled",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "user_push_token_user_enabled_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "user_push_token"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "actor_user_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "command_name",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "idempotency_key",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "command_idempotency_actor_command_key_unique_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "command_idempotency"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "retention_expires_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"state\" = 'completed'",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "command_idempotency_completed_retention_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "command_idempotency"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"state\" = 'in_progress'",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "command_idempotency_in_progress_created_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "command_idempotency"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "lease_token",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": "\"lease_token\" is not null",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "delivery_job_lease_token_unique_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "job_kind",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "job_version",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "available_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"state\" = 'pending'",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "delivery_job_pending_claim_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "job_kind",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "job_version",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "lease_expires_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"state\" = 'leased'",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "delivery_job_expired_lease_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "job_kind",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "job_version",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "dead_lettered_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"state\" = 'dead_letter'",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "delivery_job_dead_letter_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "retention_expires_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"state\" in ('completed', 'dead_letter')",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "delivery_job_terminal_retention_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "job_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "attempt_number",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "delivery_job_attempt_job_number_unique_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "delivery_job_attempt"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "job_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "attempt_number",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "delivery_job_attempt_job_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "delivery_job_attempt"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "job_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "delivery_job_manual_requeue_job_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "delivery_job_manual_requeue"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "scope_kind",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "scope_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "sequence",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "durable_event_scope_sequence_unique_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "durable_event"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "retention_expires_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "scope_kind",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "scope_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "sequence",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "durable_event_retention_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "durable_event"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "causal_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"causal_id\" is not null",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "durable_event_causal_id_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "durable_event"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "user",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "account_user_id_user_id_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "account"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "user",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "session_user_id_user_id_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "session"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "profile_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "profile",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "profile_photo_profile_id_profile_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "profile_photo"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "profile_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "profile",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "profile_reaction_profile_id_profile_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "profile_reaction"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "target_profile_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "profile",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "profile_reaction_target_profile_id_profile_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "profile_reaction"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "profile_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "profile",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "profile_user_profile_id_profile_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "profile_user"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "user",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "profile_user_user_id_user_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "profile_user"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "profile_one_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "profile",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "chat_conversation_profile_one_id_profile_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "chat_conversation"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "profile_two_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "profile",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "chat_conversation_profile_two_id_profile_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "chat_conversation"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "conversation_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "chat_conversation",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "chat_conversation_read_state_7cRi5SQ0WMxo_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "chat_conversation_read_state"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "profile_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "profile",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "chat_conversation_read_state_profile_id_profile_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "chat_conversation_read_state"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "last_read_message_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "chat_message",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "chat_conversation_read_state_XnPCzaWbUkcU_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "chat_conversation_read_state"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "conversation_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "chat_conversation",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "chat_message_conversation_id_chat_conversation_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "chat_message"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "sender_profile_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "profile",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "chat_message_sender_profile_id_profile_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "chat_message"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "reply_to_message_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "chat_message",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "chat_message_reply_to_message_id_chat_message_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "chat_message"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "message_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "chat_message",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "chat_message_reaction_message_id_chat_message_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "chat_message_reaction"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "profile_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "profile",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "chat_message_reaction_profile_id_profile_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "chat_message_reaction"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "recipient_user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "user",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "notification_recipient_user_id_user_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "notification"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "actor_profile_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "profile",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "notification_actor_profile_id_profile_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "notification"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "related_profile_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "profile",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "notification_related_profile_id_profile_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "notification"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "notification_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "notification",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "notification_delivery_notification_id_notification_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "notification_delivery"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "recipient_user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "user",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "notification_delivery_recipient_user_id_user_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "notification_delivery"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "push_token_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "user_push_token",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "notification_delivery_push_token_id_user_push_token_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "notification_delivery"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "user",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "user_push_token_user_id_user_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "user_push_token"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "job_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "delivery_job",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "delivery_job_attempt_job_id_delivery_job_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "delivery_job_attempt"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "job_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "delivery_job",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "delivery_job_manual_requeue_job_id_delivery_job_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "delivery_job_manual_requeue"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "scope_kind",
+        "scope_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "durable_event_scope",
+      "columnsTo": [
+        "scope_kind",
+        "scope_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "durable_event_scope_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "durable_event"
+    },
+    {
+      "columns": [
+        "profile_id",
+        "target_profile_id"
+      ],
+      "nameExplicit": false,
+      "name": "profile_reaction_pkey",
+      "entityType": "pks",
+      "schema": "public",
+      "table": "profile_reaction"
+    },
+    {
+      "columns": [
+        "profile_id",
+        "user_id"
+      ],
+      "nameExplicit": false,
+      "name": "profile_user_pkey",
+      "entityType": "pks",
+      "schema": "public",
+      "table": "profile_user"
+    },
+    {
+      "columns": [
+        "conversation_id",
+        "profile_id"
+      ],
+      "nameExplicit": false,
+      "name": "chat_conversation_read_state_pkey",
+      "entityType": "pks",
+      "schema": "public",
+      "table": "chat_conversation_read_state"
+    },
+    {
+      "columns": [
+        "message_id",
+        "profile_id",
+        "emoji"
+      ],
+      "nameExplicit": false,
+      "name": "chat_message_reaction_pkey",
+      "entityType": "pks",
+      "schema": "public",
+      "table": "chat_message_reaction"
+    },
+    {
+      "columns": [
+        "scope_kind",
+        "scope_id"
+      ],
+      "nameExplicit": false,
+      "name": "durable_event_scope_pkey",
+      "entityType": "pks",
+      "schema": "public",
+      "table": "durable_event_scope"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "account_pkey",
+      "schema": "public",
+      "table": "account",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "session_pkey",
+      "schema": "public",
+      "table": "session",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "user_pkey",
+      "schema": "public",
+      "table": "user",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "verification_pkey",
+      "schema": "public",
+      "table": "verification",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "profile_pkey",
+      "schema": "public",
+      "table": "profile",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "profile_photo_pkey",
+      "schema": "public",
+      "table": "profile_photo",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "chat_conversation_pkey",
+      "schema": "public",
+      "table": "chat_conversation",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "chat_message_pkey",
+      "schema": "public",
+      "table": "chat_message",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "notification_pkey",
+      "schema": "public",
+      "table": "notification",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "notification_delivery_pkey",
+      "schema": "public",
+      "table": "notification_delivery",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "user_push_token_pkey",
+      "schema": "public",
+      "table": "user_push_token",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "command_idempotency_pkey",
+      "schema": "public",
+      "table": "command_idempotency",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "delivery_job_pkey",
+      "schema": "public",
+      "table": "delivery_job",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "lease_token"
+      ],
+      "nameExplicit": false,
+      "name": "delivery_job_attempt_pkey",
+      "schema": "public",
+      "table": "delivery_job_attempt",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "delivery_job_manual_requeue_pkey",
+      "schema": "public",
+      "table": "delivery_job_manual_requeue",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "durable_event_pkey",
+      "schema": "public",
+      "table": "durable_event",
+      "entityType": "pks"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "token"
+      ],
+      "nullsNotDistinct": false,
+      "name": "session_token_unique",
+      "schema": "public",
+      "table": "session",
+      "entityType": "uniques"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "email"
+      ],
+      "nullsNotDistinct": false,
+      "name": "user_email_unique",
+      "schema": "public",
+      "table": "user",
+      "entityType": "uniques"
+    },
+    {
+      "value": "\"gender\" in ('man', 'woman', 'non_binary', 'intersex', 'custom')",
+      "name": "profile_primary_gender_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "profile"
+    },
+    {
+      "value": "\"profile_id\" <> \"target_profile_id\"",
+      "name": "profile_reaction_no_self_reaction_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "profile_reaction"
+    },
+    {
+      "value": "\"profile_one_id\" < \"profile_two_id\"",
+      "name": "chat_conversation_profile_order_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "chat_conversation"
+    },
+    {
+      "value": "\"message_type\" <> 'text' or length(btrim(coalesce(\"content\", ''))) > 0",
+      "name": "chat_message_text_content_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "chat_message"
+    },
+    {
+      "value": "\"reply_to_message_id\" is null or \"reply_to_message_id\" <> \"id\"",
+      "name": "chat_message_reply_not_self_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "chat_message"
+    },
+    {
+      "value": "length(btrim(\"emoji\")) > 0",
+      "name": "chat_message_reaction_emoji_not_blank_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "chat_message_reaction"
+    },
+    {
+      "value": "(\"provider\" is null and \"apns_environment\" is null) or (\"provider\"::text = 'expo' and \"apns_environment\" is null) or (\"provider\"::text = 'apns' and \"apns_environment\" is not null)",
+      "name": "notification_delivery_provider_environment_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "notification_delivery"
+    },
+    {
+      "value": "(\"provider\"::text = 'expo' and \"apns_environment\" is null) or (\"provider\"::text = 'apns' and \"apns_environment\" is not null)",
+      "name": "user_push_token_provider_environment_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "user_push_token"
+    },
+    {
+      "value": "\"provider\"::text <> 'apns' or (\"platform\"::text = 'ios' and nullif(btrim(\"device_id\"), '') is not null and \"token\" ~ '^([0-9A-Fa-f]{2})+$')",
+      "name": "user_push_token_apns_registration_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "user_push_token"
+    },
+    {
+      "value": "\"command_version\" > 0",
+      "name": "command_idempotency_command_version_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "command_idempotency"
+    },
+    {
+      "value": "length(btrim(\"idempotency_key\")) > 0",
+      "name": "command_idempotency_key_not_blank_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "command_idempotency"
+    },
+    {
+      "value": "\"request_fingerprint\" ~ '^[0-9a-f]{64}$'",
+      "name": "command_idempotency_fingerprint_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "command_idempotency"
+    },
+    {
+      "value": "(\n        \"state\" = 'in_progress'\n        and \"outcome\" is null\n        and \"result\" is null\n        and \"result_reference\" is null\n        and \"completed_at\" is null\n        and \"retention_expires_at\" is null\n      ) or (\n        \"state\" = 'completed'\n        and \"outcome\" is not null\n        and ((\"result\" is not null)::integer + (\"result_reference\" is not null)::integer) = 1\n        and \"completed_at\" is not null\n        and \"retention_expires_at\" > \"completed_at\"\n      )",
+      "name": "command_idempotency_state_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "command_idempotency"
+    },
+    {
+      "value": "length(btrim(\"job_kind\")) > 0",
+      "name": "delivery_job_kind_not_blank_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "value": "\"job_version\" > 0",
+      "name": "delivery_job_version_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "value": "\"max_attempts\" > 0",
+      "name": "delivery_job_max_attempts_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "value": "\"attempt_count\" >= 0 and \"attempt_count\" <= \"max_attempts\"",
+      "name": "delivery_job_attempt_count_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "value": "\"terminal_retention_seconds\" > 0",
+      "name": "delivery_job_terminal_retention_seconds_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "value": "\"manual_requeue_count\" >= 0",
+      "name": "delivery_job_manual_requeue_count_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "value": "(\n        \"state\" = 'pending'\n        and \"lease_owner\" is null\n        and \"lease_token\" is null\n        and \"leased_at\" is null\n        and \"lease_expires_at\" is null\n        and \"completed_at\" is null\n        and \"dead_lettered_at\" is null\n        and \"dead_letter_reason\" is null\n        and \"dead_letter_outcome\" is null\n        and \"retention_expires_at\" is null\n      ) or (\n        \"state\" = 'leased'\n        and \"attempt_count\" > 0\n        and \"lease_owner\" is not null\n        and \"lease_token\" is not null\n        and \"leased_at\" is not null\n        and \"lease_expires_at\" > \"leased_at\"\n        and \"completed_at\" is null\n        and \"dead_lettered_at\" is null\n        and \"dead_letter_reason\" is null\n        and \"dead_letter_outcome\" is null\n        and \"retention_expires_at\" is null\n      ) or (\n        \"state\" = 'completed'\n        and \"lease_owner\" is null\n        and \"lease_token\" is null\n        and \"leased_at\" is null\n        and \"lease_expires_at\" is null\n        and \"completed_at\" is not null\n        and \"dead_lettered_at\" is null\n        and \"dead_letter_reason\" is null\n        and \"dead_letter_outcome\" is null\n        and \"retention_expires_at\" > \"completed_at\"\n      ) or (\n        \"state\" = 'dead_letter'\n        and \"lease_owner\" is null\n        and \"lease_token\" is null\n        and \"leased_at\" is null\n        and \"lease_expires_at\" is null\n        and \"completed_at\" is null\n        and \"dead_lettered_at\" is not null\n        and \"dead_letter_reason\" is not null\n        and \"dead_letter_outcome\" is not null\n        and \"retention_expires_at\" > \"dead_lettered_at\"\n      )",
+      "name": "delivery_job_state_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "delivery_job"
+    },
+    {
+      "value": "\"attempt_number\" > 0",
+      "name": "delivery_job_attempt_number_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "delivery_job_attempt"
+    },
+    {
+      "value": "\"lease_expires_at\" > \"leased_at\"",
+      "name": "delivery_job_attempt_lease_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "delivery_job_attempt"
+    },
+    {
+      "value": "(\n        \"outcome\" = 'leased'\n        and \"failure_code\" is null\n        and \"next_available_at\" is null\n        and \"finished_at\" is null\n      ) or (\n        \"outcome\" = 'completed'\n        and \"failure_code\" is null\n        and \"next_available_at\" is null\n        and \"finished_at\" is not null\n      ) or (\n        \"outcome\" = 'retry_scheduled'\n        and \"failure_code\" is not null\n        and \"next_available_at\" is not null\n        and \"finished_at\" is not null\n      ) or (\n        \"outcome\" in ('lease_expired', 'dead_lettered_failed', 'dead_lettered_unknown')\n        and \"failure_code\" is not null\n        and \"next_available_at\" is null\n        and \"finished_at\" is not null\n      )",
+      "name": "delivery_job_attempt_outcome_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "delivery_job_attempt"
+    },
+    {
+      "value": "length(btrim(\"requested_by\")) > 0",
+      "name": "delivery_job_manual_requeue_requested_by_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "delivery_job_manual_requeue"
+    },
+    {
+      "value": "\"reason_code\" ~ '^[a-z][a-z0-9_.:-]{0,99}$'",
+      "name": "delivery_job_manual_requeue_reason_code_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "delivery_job_manual_requeue"
+    },
+    {
+      "value": "\"previous_attempt_count\" > 0 and \"next_max_attempts\" > 0",
+      "name": "delivery_job_manual_requeue_attempts_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "delivery_job_manual_requeue"
+    },
+    {
+      "value": "\"sequence\" > 0",
+      "name": "durable_event_sequence_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "durable_event"
+    },
+    {
+      "value": "length(btrim(\"event_type\")) > 0",
+      "name": "durable_event_type_not_blank_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "durable_event"
+    },
+    {
+      "value": "\"event_version\" > 0",
+      "name": "durable_event_version_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "durable_event"
+    },
+    {
+      "value": "\"retention_expires_at\" > \"committed_at\"",
+      "name": "durable_event_retention_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "durable_event"
+    },
+    {
+      "value": "length(btrim(\"scope_id\")) > 0",
+      "name": "durable_event_scope_id_not_blank_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "durable_event_scope"
+    },
+    {
+      "value": "\"scope_kind\" = 'notification-user' or \"scope_id\" ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'",
+      "name": "durable_event_scope_uuid_kind_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "durable_event_scope"
+    },
+    {
+      "value": "\"high_water_sequence\" >= 0 and \"retention_floor_sequence\" >= 1 and \"retention_floor_sequence\" <= \"high_water_sequence\" + 1",
+      "name": "durable_event_scope_sequence_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "durable_event_scope"
+    },
+    {
+      "definition": "\n  select\n    liked.profile_id,\n    liked.target_profile_id as matched_profile_id,\n    greatest(liked.updated_at, liked_back.updated_at) as matched_at\n  from \"profile_reaction\" liked\n  inner join \"profile_reaction\" liked_back\n    on liked.profile_id = liked_back.target_profile_id\n    and liked.target_profile_id = liked_back.profile_id\n  where liked.reaction = 'like'\n    and liked_back.reaction = 'like'\n",
+      "with": null,
+      "withNoData": null,
+      "using": null,
+      "tablespace": null,
+      "materialized": false,
+      "name": "profile_match",
+      "entityType": "views",
+      "schema": "public"
+    }
+  ],
+  "renames": []
+}

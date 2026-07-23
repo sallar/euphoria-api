@@ -22,8 +22,13 @@ Open http://localhost:3000/ with your browser to see the result.
 plan. Its accepted ADRs define the PostgreSQL/Redis boundary, durable realtime recovery, profile
 ownership, notification/push semantics, and cursor policy.
 
-PostgreSQL is canonical for domain state and will own durable events, sequences, idempotency, and
-delivery jobs. Redis is reserved for shared ephemeral coordination: cross-node fan-out,
+PostgreSQL is canonical for domain state and now contains the dormant F3 substrate for durable
+events, per-scope sequences, command idempotency, and leased delivery jobs. The
+[`F3 rollout runbook`](docs/backend-v2/F3-DURABLE-SUBSTRATE-ROLLOUT.md) defines its transaction,
+retention, lease, cleanup, and production-policy preconditions. No existing chat/notification path
+or production worker uses it until F4/F5 supplies reviewed policy.
+
+Redis is reserved for shared ephemeral coordination: cross-node fan-out,
 connection/subscription routing, expiring presence/typing leases, and session-revocation signals.
 Redis is not a canonical domain store. The current production runtime does not use Redis yet; chat
 and notification socket hubs remain process-local until the later realtime milestone.
@@ -151,10 +156,12 @@ The services default to:
 - Redis: `redis://127.0.0.1:56379`
 
 `test:integration` applies the existing Drizzle migrations and runs the PostgreSQL/Redis smoke test
-plus tie-heavy cursor traversal tests against the migrated application tables. Each test harness
-creates a random PostgreSQL schema and namespaced Redis keys, then removes only those resources;
-application fixtures use explicit unique IDs and are removed after the cursor suite. The smoke test
-also gives its key a short TTL. The harness refuses a database name that does not contain
+plus tie-heavy cursor traversal, F2 ownership, and F3 command/event/job concurrency tests against
+the migrated application tables. Each test harness creates a random PostgreSQL schema and
+namespaced Redis keys, then removes only those resources; application fixtures use explicit unique
+IDs and are removed after their suite. Durable event scope metadata intentionally remains until the
+integration tmpfs is recreated because production scope sequence boundaries are permanent. The
+smoke test also gives its key a short TTL. The harness refuses a database name that does not contain
 `integration`.
 
 The repository's PostGIS 17 image currently publishes an AMD64 runtime, so the integration service

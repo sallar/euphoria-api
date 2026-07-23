@@ -8,6 +8,7 @@ export default defineConfig({
     "./src/db/profile-schema.ts",
     "./src/db/chat-schema.ts",
     "./src/db/notification-schema.ts",
+    "./src/db/durable-schema.ts",
   ],
   dialect: "postgresql",
   extensionsFilters: ["postgis"],

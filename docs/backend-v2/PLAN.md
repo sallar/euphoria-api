@@ -9,6 +9,7 @@ file when a decision, dependency, rollout gate, or current-code fact changes. Fo
 recorded in:
 
 - [F2 profile ownership audit and rollout](F2-PROFILE-OWNERSHIP-ROLLOUT.md)
+- [F3 durable substrate schema and rollout](F3-DURABLE-SUBSTRATE-ROLLOUT.md)
 - [ADR 0001: PostgreSQL and Redis state ownership](../adr/0001-postgres-redis-state-ownership.md)
 - [ADR 0002: Durable realtime delivery and recovery](../adr/0002-durable-realtime-delivery.md)
 - [ADR 0003: Profile ownership invariant](../adr/0003-profile-ownership-invariant.md)
@@ -43,6 +44,7 @@ bearer authentication and restricts the target to the authenticated user.
 | Feed, conversation, message, and notification pagination now uses one versioned HMAC-protected cursor codec with full normalized sort tuples and keyed scope/filter fingerprints.                   | F1 cursor integrity is implemented; clients treat every cursor as an opaque string and restart lists that retained a legacy numeric/date cursor.    |
 | Every paginated query uses a strict full-tuple predicate, fetches `limit + 1`, and derives a next cursor from the returned boundary row only when lookahead proves another page.                    | Tie-heavy migrated-PostgreSQL traversal tests cover page-size-one boundaries, final/empty pages, and exactly-once traversal.                        |
 | F2 defines active as `profile.deleted_at IS NULL`; database triggers and services enforce zero/one active membership while preserving explicit owner/member roles for shared couple/group profiles. | Bootstrap remains collection-shaped but returns zero/one active profile; every authorization scope names and verifies the active member profile.    |
+| F3 now provides PostgreSQL command claims/fingerprints, permanent scope sequence metadata, immutable scoped events, and fenced leased jobs without importing them into existing request paths.      | The reusable substrate is complete and dormant; F4/F5 must supply reviewed retention/lease/retry policy and atomic domain producers before use.     |
 | `clientMessageId` is optional WebSocket correlation, is absent from the message table and REST insert, and is included in a message event broadcast to every subscriber.                            | Persisted idempotency must cover REST and WebSocket, while correlation/acknowledgement stays origin-only.                                           |
 | Message access/match checks happen before the message transaction; notification creation and socket broadcasts happen after it.                                                                     | Message, read/conversation mutation, canonical notification state, events, jobs, and idempotency are not atomic today.                              |
 | Like/unlike takes a profile-pair advisory lock, but send/reaction does not; unlike returns before broadcasting an upsert.                                                                           | Match state can race with chat mutations, and peers may retain stale matched state after unlike.                                                    |
@@ -134,6 +136,11 @@ If `clientSequence` is older than the retained floor, ahead of the current high-
 to another scope/protocol, or cannot be repaired, return `resync_required` with the scope,
 retention floor, and current high-water mark. The client then obtains a canonical snapshot and
 resumes strictly after the snapshot sequence.
+
+F3 implements only the permanent PostgreSQL floor/high-water metadata, checkpoint-boundary
+validation, and contiguous retained ranges needed by this handoff. F6 still owns subscription,
+buffering, replay reads, Redis fan-out, gap repair, socket results, and the complete race-free
+handoff above.
 
 ## Dependency-ordered milestones
 
@@ -239,6 +246,8 @@ Implementation record:
 
 Dependencies: F2 for stable profile scope semantics.
 
+Status: completed 2026-07-23.
+
 - Add reusable idempotency records and normalized request fingerprints for replayable commands.
 - Add transactional outbox/event-log rows and per-scope sequence allocation in PostgreSQL.
 - Add retention metadata and indexes for ordered replay.
@@ -251,6 +260,31 @@ Acceptance gates:
 - Repeating an idempotency key returns the original outcome without another mutation.
 - Concurrent writers produce unique, ordered sequences per scope.
 - Abandoned worker leases are recoverable without duplicate domain mutations.
+
+Implementation record:
+
+- Actor/command/key uniqueness and a command-version-bound canonical JSON fingerprint serialize
+  duplicate claims. Completed records remain authoritative after expiry until explicit terminal
+  cleanup; old nonterminal records have a diagnostic query and no silent expiry.
+- The three approved scope kinds are database enums. Atomic scope-row upserts allocate strictly
+  increasing sequences, metadata is permanent and monotonic, retained ranges cannot contain
+  holes, and optional causal IDs link multi-scope events without promising cross-scope ordering.
+- A new scope starts at `{ highWater: 0, retentionFloor: 1 }`. Cleanup advances the floor through
+  expired contiguous prefixes only; no historical events are fabricated.
+- Jobs count attempts at claim time, use PostgreSQL time plus `FOR UPDATE SKIP LOCKED`, and fence
+  every worker transition with an owner and unique lease token. Expired final claims become
+  queryable `lease_expired_after_final_claim`/`unknown` dead letters. Retry availability is a
+  caller-provided absolute timestamp; F3 chooses no backoff or terminal provider policy.
+- Manual dead-letter requeue preserves lifetime attempt numbering and writes an operator/reason
+  audit row. Failure metadata is reduced to a constrained machine code.
+- Migrated-PostgreSQL tests cover concurrent duplicate/fingerprint claims, expired-but-present
+  commands, nonterminal diagnostics, rollback injection, 20-way sequence allocation, causal
+  multi-scope writes, floor/checkpoint boundaries, explicit F2 scope authorization, competing job
+  workers, non-expired lease protection, reclaim, stale fences, retries, idempotent transitions,
+  crashed final attempts, dead-letter queries, sanitization, and manual requeue.
+- No chat/notification producer, delivery worker, scheduler, socket/replay path, Redis runtime, or
+  public contract was added. Production use remains blocked on reviewed F4/F5 retention, lease,
+  retry, attempt, cleanup, payload, and observability policy.
 
 ### F4. Transactional chat correctness
 
@@ -572,7 +606,7 @@ smuggled into F1 or the core Backend v2 rollout.
 | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | APNs described as absent in stale iOS text                                 | Already implemented and protected by F0 regression gates; F5 adds durable workers, receipt semantics, invalid-token handling, and sandbox/production physical-device verification. |
 | Incomplete/skipping pagination and defensive client deduplication          | Closed by F1 tie-heavy complete traversal, strict full-tuple predicates, and returned-boundary cursor tests; client workaround removal still follows explicit client rollout.      |
-| Unsafe resend and no durable message outbox                                | F3 substrate plus F4 required cross-transport idempotency/fingerprint/atomicity gates.                                                                                             |
+| Unsafe resend and no durable message outbox                                | F3 reusable claim/event/job substrate is complete; F4 still owns cross-transport message wiring, normalization, common locking, and atomicity gates.                               |
 | Process-local realtime and reconnect-wide REST reconciliation              | F6 multi-node, Redis-outage, replay, handoff, and no-canonical-Redis gates; F7 removes the workaround only after client rollout.                                                   |
 | Missing typing cleanup/local expiry                                        | F6 TTL/final-lease aggregate `typing=false` and stale-node cleanup gates.                                                                                                          |
 | Peer read is transient and unrecoverable                                   | F4 authorized REST peer-read and durable conversation-read gates.                                                                                                                  |
@@ -582,7 +616,7 @@ smuggled into F1 or the core Backend v2 rollout.
 | Correlation token can reach peers                                          | F4 origin-only acknowledgement gate and F6 AsyncAPI origin/capability gate.                                                                                                        |
 | Message notification rows/count are missing while actively viewed          | F4 atomic notification creation plus F5 push-only suppression/cross-device event gates.                                                                                            |
 | Notification cross-device read/archive/count ambiguity                     | F5 resulting-state payload and sequence-order gates.                                                                                                                               |
-| Direct push calls, no worker/receipt loop, misleading `delivered`          | F5 lease/retry/dead-letter/crash, Expo receipt, and provider-acceptance gates.                                                                                                     |
+| Direct push calls, no worker/receipt loop, misleading `delivered`          | F3 leased/fenced job primitives are complete; F5 still owns notification producers/workers, retry policy, Expo receipts, and provider-acceptance gates.                            |
 | Sign-out cannot close one session's sockets across nodes                   | F6 session-ID registry/revocation-latency gate.                                                                                                                                    |
 | Unbounded socket subscriptions/commands/output and unclear close handling  | F6 bounds, backpressure, slow-consumer, rate/payload, close-class, and sanitized-observability gates.                                                                              |
 | Zero/one product behavior over permissive membership                       | Closed by F2 database/service concurrency, active/deleted semantics, and explicit shared-profile role/final-owner gates; P0 is required before multi-profile switching.            |
@@ -596,7 +630,8 @@ smuggled into F1 or the core Backend v2 rollout.
 
 1. F1 composite cursors are complete; preserve their shared codec and traversal regression gates.
 2. Complete F2 before introducing stable profile-scoped event ownership.
-3. Implement F3 as reusable PostgreSQL substrate without changing socket protocol.
+3. F3 reusable PostgreSQL substrate is complete; preserve its dormant producer boundary and
+   concurrency/rollback gates.
 4. Implement F4 transactional chat correctness before relying on chat events/jobs in notification
    or replay rollout.
 5. Implement F5 notification workers and cross-device semantics on F3/F4.
@@ -618,8 +653,10 @@ sequence is:
 
 1. Audit/remediate profile membership, then expand F2/F3 PostgreSQL schemas and indexes without
    removing v1 behavior.
-2. Deploy F3 substrate in shadow mode: allocate/write events/jobs/idempotency alongside v1 but do
-   not claim replay or delivery correctness yet.
+2. Deploy the F3 schema and dormant repositories without enabling a producer, worker, scheduler,
+   or cleanup task. F4/F5 may begin reviewed shadow writes only after supplying explicit retention,
+   lease, attempt, retry, cleanup, payload, and observability policy; do not claim replay or
+   delivery correctness yet.
 3. Backfill only state with a defined semantic mapping. Do not fabricate historical socket events;
    start each scope at a documented sequence boundary when necessary.
 4. Cut chat writes to F4 atomic transactions while dual-serving compatible v1 responses/events;
@@ -662,9 +699,16 @@ should use per-suite schemas or explicit fixtures for mutable test state. Tests 
 
 ## Next task handoff
 
-The next orchestrated milestone should implement F3 only: reusable PostgreSQL command idempotency,
-durable scoped event/outbox, sequence/retention, and leased job substrate. Preserve the completed
-F1 cursor policy and regression fixtures plus F2 active-profile, shared-role, concurrency,
-remediation-precondition, and authorization gates. Do not add P0 profile invitations/switching,
-implement F4 chat correctness, change F5 notification/APNs delivery, add F6 realtime/Redis runtime
-behavior, begin P1-P5 product work, or update iOS contracts in that task.
+The next orchestrated milestone should implement F4 transactional chat correctness on the F3
+transaction APIs. Require one persisted idempotency key across REST/WebSocket, define the reviewed
+command normalization and F3 policy inputs, use one common match/chat lock, and atomically commit
+the message/reaction domain change, monotonic sender read, conversation projection, canonical
+notification state, scoped events, jobs, and idempotency outcome. Add unread aggregates, authorized
+peer reads, bounded reply summaries, unlike/rematch convergence events, and origin-only command
+acknowledgements exactly as specified by F4.
+
+Preserve F1 cursor wire/traversal behavior, every F2 ownership/remediation gate, the F3
+sequence/floor/fencing/rollback invariants, existing public endpoint envelopes, APNs/Expo
+semantics, and the bearer-authenticated self-only test-notification route. Do not implement F5
+workers or provider-policy changes, F6 replay/Redis runtime, P0 profile switching, P1-P5 product
+work, or iOS contract updates in F4.
