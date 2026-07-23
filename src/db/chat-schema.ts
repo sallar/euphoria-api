@@ -2,7 +2,6 @@ import { sql } from "drizzle-orm";
 import {
   check,
   index,
-  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
@@ -14,6 +13,7 @@ import {
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
+import { bunJsonb } from "./custom-types";
 import { profile } from "./profile-schema";
 
 export const chatMessageTypeValues = ["text", "image"] as const;
@@ -26,6 +26,23 @@ export type ChatMessageAttachment = {
   mimeType?: string;
   width?: number;
   height?: number;
+};
+
+export type ChatMessageReplySummary = {
+  messageId: string;
+  senderProfileId: string | null;
+  messageType: (typeof chatMessageTypeValues)[number];
+  state: "available" | "deleted" | "unavailable";
+  preview:
+    | {
+        kind: "text";
+        text: string;
+        truncated: boolean;
+      }
+    | {
+        kind: "image";
+      }
+    | null;
 };
 
 export const chatConversation = pgTable(
@@ -79,13 +96,14 @@ export const chatMessage = pgTable(
     }),
     messageType: chatMessageTypeEnum("message_type").default("text").notNull(),
     content: text("content"),
-    attachments: jsonb("attachments")
+    attachments: bunJsonb("attachments")
       .$type<ChatMessageAttachment[]>()
       .default(sql`'[]'::jsonb`)
       .notNull(),
     replyToMessageId: uuid("reply_to_message_id").references((): AnyPgColumn => chatMessage.id, {
       onDelete: "set null",
     }),
+    replySummary: bunJsonb("reply_summary").$type<ChatMessageReplySummary>(),
     editedAt: timestamp("edited_at", { withTimezone: true }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -142,9 +160,8 @@ export const chatConversationReadState = pgTable(
     profileId: uuid("profile_id")
       .notNull()
       .references(() => profile.id, { onDelete: "cascade" }),
-    lastReadMessageId: uuid("last_read_message_id").references(() => chatMessage.id, {
-      onDelete: "set null",
-    }),
+    lastReadMessageId: uuid("last_read_message_id"),
+    lastReadMessageCreatedAt: timestamp("last_read_message_created_at", { withTimezone: true }),
     lastReadAt: timestamp("last_read_at", { withTimezone: true }).defaultNow().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -154,6 +171,10 @@ export const chatConversationReadState = pgTable(
   },
   (table) => [
     primaryKey({ columns: [table.conversationId, table.profileId] }),
+    check(
+      "chat_conversation_read_state_position_check",
+      sql`(${table.lastReadMessageId} is null) = (${table.lastReadMessageCreatedAt} is null)`,
+    ),
     index("chat_conversation_read_state_profile_idx").on(table.profileId, table.updatedAt.desc()),
     index("chat_conversation_read_state_last_read_message_idx").on(table.lastReadMessageId),
   ],

@@ -365,6 +365,47 @@ describe("application DTO contract", () => {
     );
     expect(apnsRegistration.properties.platform.const).toBe("ios");
   });
+
+  test("publishes the F4 message, read, unread, reply, and idempotency contracts", () => {
+    const sendOperation =
+      applicationDocument.paths[
+        "/api/chat/profiles/{profileId}/conversations/{conversationId}/messages"
+      ].post;
+    expect(sendOperation.parameters).toContainEqual(
+      expect.objectContaining({
+        in: "header",
+        name: "Idempotency-Key",
+        required: true,
+      }),
+    );
+    expect(sendOperation.responses["201"].headers["Idempotency-Replayed"]).toMatchObject({
+      required: true,
+      schema: { type: "boolean" },
+    });
+    expect(
+      applicationDocument.paths["/api/chat/profiles/{profileId}/unread-count"].get.operationId,
+    ).toBe("getChatUnreadCount");
+    expect(applicationDocument.components.schemas.ChatUnreadCount.required).toEqual(["count"]);
+
+    const message = applicationDocument.components.schemas.ChatMessage;
+    expect(message.required).toContain("replySummary");
+    expect(message.properties.replySummary.type).toEqual(["object", "null"]);
+    expect(message.properties.replySummary.properties.preview.oneOf).toContainEqual({
+      type: "null",
+    });
+    const conversation = applicationDocument.components.schemas.ChatConversation;
+    expect(conversation.required).toContain("participantReadPositions");
+    expect(conversation.properties.participantReadPositions).toMatchObject({
+      minItems: 2,
+      maxItems: 2,
+    });
+    expect(applicationDocument.components.schemas.ChatParticipantReadPosition.required).toEqual([
+      "profileId",
+      "lastReadMessageId",
+      "lastReadMessageCreatedAt",
+      "lastReadAt",
+    ]);
+  });
 });
 
 describe("application runtime validation", () => {

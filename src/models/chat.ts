@@ -10,8 +10,17 @@ import {
 } from "./realtime";
 
 const uuid = t.String({ format: "uuid" });
-const messageText = t.String({ minLength: 1, maxLength: 4000 });
+const messageText = t.String({
+  description: "Producer validation trims this value and accepts 1 through 4000 characters.",
+});
 const reactionEmoji = t.String({ minLength: 1, maxLength: 64 });
+const reactionInput = t.String({
+  description: "Producer validation trims this value and accepts 1 through 64 characters.",
+});
+export const ChatMessageIdempotencyKey = t.String({
+  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+  description: "Canonical lowercase RFC 4122 UUID used as the persisted message command key.",
+});
 const clientMessageId = t.String({
   minLength: 1,
   maxLength: 120,
@@ -38,6 +47,28 @@ export const ChatMessageReactionCount = t.Object({
   count: t.Integer({ minimum: 0 }),
 });
 
+export const ChatMessageReplySummaryPreview = t.Union([
+  t.Object({
+    kind: t.Literal("text"),
+    text: t.String({
+      maxLength: 4000,
+      description: "At most 160 Unicode extended grapheme clusters.",
+    }),
+    truncated: t.Boolean(),
+  }),
+  t.Object({
+    kind: t.Literal("image"),
+  }),
+]);
+
+export const ChatMessageReplySummary = t.Object({
+  messageId: uuid,
+  senderProfileId: t.Nullable(uuid),
+  messageType: chatMessageTypeSchema,
+  state: t.Union([t.Literal("available"), t.Literal("deleted"), t.Literal("unavailable")]),
+  preview: t.Nullable(ChatMessageReplySummaryPreview),
+});
+
 export const ChatConversationLastMessage = t.Object({
   id: uuid,
   senderProfileId: t.Nullable(uuid),
@@ -54,6 +85,13 @@ export const ChatConversationReadState = t.Object({
   firstUnreadMessageCreatedAt: t.Nullable(t.Date()),
 });
 
+export const ChatParticipantReadPosition = t.Object({
+  profileId: uuid,
+  lastReadMessageId: t.Nullable(uuid),
+  lastReadMessageCreatedAt: t.Nullable(t.Date()),
+  lastReadAt: t.Nullable(t.Date()),
+});
+
 export const ChatMessage = t.Object({
   id: uuid,
   conversationId: uuid,
@@ -62,6 +100,7 @@ export const ChatMessage = t.Object({
   content: t.Nullable(t.String()),
   attachments: t.Array(ChatMessageAttachment),
   replyToMessageId: t.Nullable(uuid),
+  replySummary: t.Nullable(ChatMessageReplySummary),
   editedAt: t.Nullable(t.Date()),
   deletedAt: t.Nullable(t.Date()),
   createdAt: t.Date(),
@@ -80,6 +119,10 @@ export const ChatConversation = t.Object({
   lastMessageAt: t.Nullable(t.Date()),
   lastMessage: t.Optional(ChatConversationLastMessage),
   readState: ChatConversationReadState,
+  participantReadPositions: t.Array(ChatParticipantReadPosition, {
+    minItems: 2,
+    maxItems: 2,
+  }),
   createdAt: t.Date(),
   updatedAt: t.Date(),
 });
@@ -104,8 +147,12 @@ const ChatMessageInsert = t.Object({
   replyToMessageId: t.Optional(uuid),
 });
 
+const ChatUnreadCount = t.Object({
+  count: t.Integer({ minimum: 0 }),
+});
+
 const ChatMessageReactionInput = t.Object({
-  emoji: reactionEmoji,
+  emoji: reactionInput,
 });
 
 const ChatConversationReadUpdate = t.Object({
@@ -141,6 +188,10 @@ export const ChatSendMessageCommand = t.Object(
     conversationId: uuid,
     text: messageText,
     replyToMessageId: t.Optional(uuid),
+    idempotencyKey: t.String({
+      description:
+        "Required persisted command key. The producer accepts only a canonical lowercase RFC 4122 UUID and returns stable command errors for missing or malformed values.",
+    }),
     clientMessageId: t.Optional(clientMessageId),
   },
   { description: "Creates a text message in a conversation." },
@@ -169,7 +220,7 @@ export const ChatAddReactionCommand = t.Object(
     type: t.Literal("add_reaction"),
     conversationId: uuid,
     messageId: uuid,
-    emoji: reactionEmoji,
+    emoji: reactionInput,
   },
   { description: "Adds the active profile's emoji reaction to a message." },
 );
@@ -179,7 +230,7 @@ export const ChatRemoveReactionCommand = t.Object(
     type: t.Literal("remove_reaction"),
     conversationId: uuid,
     messageId: uuid,
-    emoji: reactionEmoji,
+    emoji: reactionInput,
   },
   { description: "Removes the active profile's emoji reaction from a message." },
 );
@@ -224,8 +275,7 @@ export const ChatConversationReadEvent = t.Object(
   {
     type: t.Literal("conversation_read"),
     conversationId: uuid,
-    profileId: uuid,
-    readState: ChatConversationReadState,
+    position: ChatParticipantReadPosition,
   },
   { description: "Reports a participant's current conversation read state." },
 );
@@ -235,9 +285,40 @@ export const ChatMessageEvent = t.Object(
     type: t.Literal("message"),
     conversationId: uuid,
     message: ChatMessage,
-    clientMessageId: t.Optional(clientMessageId),
   },
   { description: "Delivers a newly created canonical chat message." },
+);
+
+export const ChatCommandError = t.Object({
+  code: t.String(),
+  message: t.String(),
+});
+
+export const ChatSendMessageResult = t.Union([
+  t.Object({
+    status: t.Literal("succeeded"),
+    message: ChatMessage,
+  }),
+  t.Object({
+    status: t.Literal("rejected"),
+    error: ChatCommandError,
+  }),
+]);
+
+export const ChatSendMessageResultEvent = t.Object(
+  {
+    type: t.Literal("send_message_result"),
+    command: t.Literal("chat.message.send"),
+    commandVersion: t.Literal(1),
+    idempotencyKey: ChatMessageIdempotencyKey,
+    clientMessageId: t.Optional(clientMessageId),
+    replayed: t.Boolean(),
+    result: ChatSendMessageResult,
+  },
+  {
+    description:
+      "Origin-only terminal result for the persisted chat.message.send command. It is never published to peers or durable scopes.",
+  },
 );
 
 export const ChatReactionEvent = t.Object(
@@ -285,6 +366,7 @@ export const ChatErrorEvent = t.Object(
     type: t.Literal("error"),
     code: t.String(),
     message: t.String(),
+    idempotencyKey: t.Optional(t.String()),
     clientMessageId: t.Optional(clientMessageId),
     conversationId: t.Optional(uuid),
   },
@@ -321,6 +403,7 @@ const exampleMessage = {
   content: "See you tonight!",
   attachments: [],
   replyToMessageId: null,
+  replySummary: null,
   editedAt: null,
   deletedAt: null,
   createdAt: exampleTimestamp,
@@ -348,6 +431,20 @@ const exampleConversation = {
     createdAt: exampleTimestamp,
   },
   readState: exampleReadState,
+  participantReadPositions: [
+    {
+      profileId: exampleIds.profile,
+      lastReadMessageId: exampleIds.message,
+      lastReadMessageCreatedAt: exampleTimestamp,
+      lastReadAt: exampleTimestamp,
+    },
+    {
+      profileId: exampleIds.peerProfile,
+      lastReadMessageId: null,
+      lastReadMessageCreatedAt: null,
+      lastReadAt: null,
+    },
+  ],
   createdAt: exampleTimestamp,
   updatedAt: exampleTimestamp,
 };
@@ -383,12 +480,13 @@ export const chatClientCommandRegistry = [
     schema: ChatSendMessageCommand,
     summary: "Send a chat message",
     description:
-      "Create a message. clientMessageId correlates the response only and is not an idempotency key.",
+      "Create a message using a required persisted UUID idempotency key. clientMessageId remains origin-only correlation.",
     example: {
       type: "send_message",
       conversationId: exampleIds.conversation,
       text: "See you tonight!",
       replyToMessageId: exampleIds.reply,
+      idempotencyKey: "10000000-0000-4000-8000-000000000042",
       clientMessageId: "mobile-message-42",
     },
     correlationId: true,
@@ -487,8 +585,7 @@ export const chatServerEventRegistry = [
     example: {
       type: "conversation_read",
       conversationId: exampleIds.conversation,
-      profileId: exampleIds.profile,
-      readState: exampleReadState,
+      position: exampleConversation.participantReadPositions[0],
     },
   },
   {
@@ -496,12 +593,32 @@ export const chatServerEventRegistry = [
     wireType: "message",
     schema: ChatMessageEvent,
     summary: "Chat message created",
-    description: "Carries the new canonical message and optional command correlation value.",
+    description:
+      "Carries the new canonical message without command correlation or idempotency fields.",
     example: {
       type: "message",
       conversationId: exampleIds.conversation,
       message: exampleMessage,
+    },
+  },
+  {
+    name: "ChatSendMessageResultEvent",
+    wireType: "send_message_result",
+    schema: ChatSendMessageResultEvent,
+    summary: "Message command completed",
+    description:
+      "Origin-only message command result with the caller's idempotency key and optional correlation value.",
+    example: {
+      type: "send_message_result",
+      command: "chat.message.send",
+      commandVersion: 1,
+      idempotencyKey: "10000000-0000-4000-8000-000000000042",
       clientMessageId: "mobile-message-42",
+      replayed: false,
+      result: {
+        status: "succeeded",
+        message: exampleMessage,
+      },
     },
     correlationId: true,
   },
@@ -563,6 +680,7 @@ export const chatServerEventRegistry = [
       type: "error",
       code: "reply_not_found",
       message: "Reply target message not found",
+      idempotencyKey: "10000000-0000-4000-8000-000000000042",
       clientMessageId: "mobile-message-42",
       conversationId: exampleIds.conversation,
     },
@@ -585,16 +703,20 @@ export type ChatClientCommand = typeof ChatClientCommand.static;
 export type ChatServerEvent = typeof ChatServerEvent.static;
 export type ChatConversation = typeof ChatConversation.static;
 export type ChatConversationLastMessage = typeof ChatConversationLastMessage.static;
+export type ChatParticipantReadPosition = typeof ChatParticipantReadPosition.static;
 export type ChatConversationReadState = typeof ChatConversationReadState.static;
 export type ChatMessage = typeof ChatMessage.static;
 export type ChatMessageAttachment = typeof ChatMessageAttachment.static;
 export type ChatMessageReactionCount = typeof ChatMessageReactionCount.static;
+export type ChatMessageReplySummary = typeof ChatMessageReplySummary.static;
+export type ChatSendMessageResult = typeof ChatSendMessageResult.static;
 export type ChatPresence = typeof ChatPresence.static;
 export type ChatProfileSummary = typeof ChatProfileSummary.static;
 
 export const chatModel = new Elysia({ name: "chat-model" }).model({
   ChatConversation,
   ChatConversationLastMessage,
+  ChatParticipantReadPosition,
   ChatConversationReadState,
   ChatConversationReadUpdate,
   ChatConversationListResponse,
@@ -604,6 +726,12 @@ export const chatModel = new Elysia({ name: "chat-model" }).model({
   ChatMessageListResponse,
   ChatMessageReactionCount,
   ChatMessageReactionInput,
+  ChatMessageReplySummary,
+  ChatMessageReplySummaryPreview,
+  ChatMessageIdempotencyKey,
+  ChatCommandError,
+  ChatSendMessageResult,
+  ChatUnreadCount,
   ChatPresence,
   ChatProfileSummary,
   ...realtimeSchemas(chatClientCommandRegistry, chatServerEventRegistry),

@@ -27,7 +27,7 @@ const errorStatusDescriptions: Record<string, string> = {
 export const openApiInfo = {
   title: "Euphoria API",
   description: "Canonical REST API contract for Euphoria clients",
-  version: "2026-07-23",
+  version: "2026-07-24",
 } as const;
 
 export const realtimeEnvelopeRegistries = {
@@ -92,8 +92,53 @@ function createUnprunedOpenApiDocument(app: AnyElysia): OpenApiObject {
   addRealtimeEnvelopeComponents(document);
   addBearerSecurityScheme(document);
   addStandardApplicationErrors(document);
+  addChatMessageCommandHeaders(document);
 
-  return document;
+  // Deduplication can introduce component references inside nullable unions,
+  // so normalize once more after all exporter-owned rewrites are complete.
+  return normalizeOpenApiValue(document) as OpenApiObject;
+}
+
+function addChatMessageCommandHeaders(document: OpenApiObject) {
+  const operation = asRecord(
+    asRecord(
+      asRecord(document.paths)[
+        "/api/chat/profiles/{profileId}/conversations/{conversationId}/messages"
+      ],
+    ).post,
+  );
+  const responses = asRecord(operation.responses);
+  const parameters = Array.isArray(operation.parameters) ? operation.parameters : [];
+  operation.parameters = [
+    ...parameters,
+    {
+      in: "header",
+      name: "Idempotency-Key",
+      required: true,
+      description: "Canonical lowercase RFC 4122 UUID scoped to chat.message.send.",
+      schema: {
+        type: "string",
+        format: "uuid",
+        pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      },
+    },
+  ];
+
+  for (const status of ["201", "404", "409", "422"]) {
+    const response = asRecord(responses[status]);
+    response.headers = {
+      ...asRecord(response.headers),
+      "Idempotency-Replayed": {
+        required: true,
+        description:
+          "Whether this terminal command result was loaded from the persisted idempotency record.",
+        schema: { type: "boolean" },
+      },
+    };
+    responses[status] = response;
+  }
+
+  operation.responses = responses;
 }
 
 export function normalizeOpenApiValue(value: unknown): unknown {
@@ -456,6 +501,11 @@ function normalizeSimpleNullableUnion(value: OpenApiObject): OpenApiObject | und
         type: ["string", "null"],
       };
     }
+
+    return {
+      ...outerMetadata,
+      oneOf: [nonNullCandidate, { type: "null" }],
+    };
   }
 
   if (Array.isArray(nonNullCandidate.anyOf)) {

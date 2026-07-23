@@ -5,7 +5,6 @@ import {
   foreignKey,
   index,
   integer,
-  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
@@ -15,6 +14,8 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
+
+import { bunJsonb } from "./custom-types";
 
 export type DurableJsonPrimitive = boolean | null | number | string;
 export type DurableJsonValue =
@@ -83,8 +84,8 @@ export const commandIdempotency = pgTable(
     requestFingerprint: varchar("request_fingerprint", { length: 64 }).notNull(),
     state: commandIdempotencyStateEnum("state").default("in_progress").notNull(),
     outcome: commandIdempotencyOutcomeEnum("outcome"),
-    result: jsonb("result").$type<{ value: DurableJsonValue }>(),
-    resultReference: jsonb("result_reference").$type<DurableJsonObject>(),
+    result: bunJsonb("result").$type<{ value: DurableJsonValue }>(),
+    resultReference: bunJsonb("result_reference").$type<DurableJsonObject>(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     retentionExpiresAt: timestamp("retention_expires_at", { withTimezone: true }),
@@ -166,7 +167,7 @@ export const durableEvent = pgTable(
     sequence: bigint("sequence", { mode: "bigint" }).notNull(),
     eventType: varchar("event_type", { length: 160 }).notNull(),
     eventVersion: integer("event_version").notNull(),
-    payload: jsonb("payload").$type<DurableJsonObject>().notNull(),
+    payload: bunJsonb("payload").$type<DurableJsonObject>().notNull(),
     causalId: uuid("causal_id"),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
     committedAt: timestamp("committed_at", { withTimezone: true }).defaultNow().notNull(),
@@ -205,7 +206,7 @@ export const deliveryJob = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     jobKind: varchar("job_kind", { length: 120 }).notNull(),
     jobVersion: integer("job_version").notNull(),
-    payload: jsonb("payload").$type<DurableJsonObject>().notNull(),
+    payload: bunJsonb("payload").$type<DurableJsonObject>().notNull(),
     state: deliveryJobStateEnum("state").default("pending").notNull(),
     availableAt: timestamp("available_at", { withTimezone: true }).notNull(),
     maxAttempts: integer("max_attempts").notNull(),

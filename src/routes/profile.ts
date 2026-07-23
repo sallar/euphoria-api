@@ -1,6 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import Elysia, { t } from "elysia";
 
+import { readTransactionalChatPolicy } from "@/config/transactional-chat-policy";
 import { profile } from "@/db/profile-schema";
 import { db } from "@/lib/db";
 import {
@@ -143,12 +144,19 @@ export const profileRoutes = new Elysia({ prefix: "/api/profile", tags: ["Profil
       if (!targetProfile) return status(404, { message: "Target profile not found" });
 
       const result = await setProfileReactionAndSyncConversation({
+        policy: readTransactionalChatPolicy(),
         profileId: params.id,
         targetProfileId: params.targetProfileId,
         reaction: "like",
+        userId: user.id,
       });
+      if (!result.ok) return status(404, { code: result.code, message: result.message });
 
-      return status(200, result);
+      return status(200, {
+        reaction: result.reaction,
+        matched: result.matched,
+        conversationId: result.conversationId,
+      });
     },
     {
       auth: true,
@@ -180,12 +188,19 @@ export const profileRoutes = new Elysia({ prefix: "/api/profile", tags: ["Profil
       if (!targetProfile) return status(404, { message: "Target profile not found" });
 
       const result = await setProfileReactionAndSyncConversation({
+        policy: readTransactionalChatPolicy(),
         profileId: params.id,
         targetProfileId: params.targetProfileId,
         reaction: "unlike",
+        userId: user.id,
       });
+      if (!result.ok) return status(404, { code: result.code, message: result.message });
 
-      return status(200, result);
+      return status(200, {
+        reaction: result.reaction,
+        matched: result.matched,
+        conversationId: result.conversationId,
+      });
     },
     {
       auth: true,

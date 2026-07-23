@@ -1,7 +1,7 @@
 # Backend v2 delivery plan
 
-Status: accepted foundation plan  
-Last audited: 2026-07-23  
+Status: accepted plan; F1-F4 implemented, F4 production activation gated on client/F5
+Last audited: 2026-07-24
 Applies to: Euphoria API and its published mobile contracts
 
 This is the canonical implementation plan for Backend v2. Later milestones should update this
@@ -10,6 +10,7 @@ recorded in:
 
 - [F2 profile ownership audit and rollout](F2-PROFILE-OWNERSHIP-ROLLOUT.md)
 - [F3 durable substrate schema and rollout](F3-DURABLE-SUBSTRATE-ROLLOUT.md)
+- [F4 transactional chat correctness and rollout](F4-TRANSACTIONAL-CHAT-ROLLOUT.md)
 - [ADR 0001: PostgreSQL and Redis state ownership](../adr/0001-postgres-redis-state-ownership.md)
 - [ADR 0002: Durable realtime delivery and recovery](../adr/0002-durable-realtime-delivery.md)
 - [ADR 0003: Profile ownership invariant](../adr/0003-profile-ownership-invariant.md)
@@ -40,18 +41,18 @@ bearer authentication and restricts the target to the authenticated user.
 | `src/lib/db.ts` uses PostgreSQL through Drizzle/Bun SQL.                                                                                                                                            | PostgreSQL remains the canonical domain store.                                                                                                      |
 | `src/services/chat-sockets.ts` and `notification-sockets.ts` keep sockets, subscriptions, and presence in process-local maps keyed by socket/profile/user, not session ID.                          | Current realtime cannot provide cross-node fan-out, session-wide revocation, leases, or replay.                                                     |
 | Socket code has no subscription bound, command rate limit, output queue/backpressure policy, node heartbeat, or stale-node cleanup.                                                                 | Distributed realtime needs an explicit safety and lifecycle milestone, not only Redis pub/sub.                                                      |
-| `src/lib/asyncapi-document.ts` explicitly advertises no durable ID, cursor, or replay.                                                                                                              | Protocol v2 must be additive and versioned; current clients still require REST reconciliation.                                                      |
+| `src/lib/asyncapi-document.ts` publishes chat protocol 2/contract 2.0.0 with required message idempotency and origin-only results, while still advertising no socket replay.                        | F4 uses a strict protocol-2 client cutover; F6 may extend protocol 2 additively with resume/replay.                                                 |
 | Feed, conversation, message, and notification pagination now uses one versioned HMAC-protected cursor codec with full normalized sort tuples and keyed scope/filter fingerprints.                   | F1 cursor integrity is implemented; clients treat every cursor as an opaque string and restart lists that retained a legacy numeric/date cursor.    |
 | Every paginated query uses a strict full-tuple predicate, fetches `limit + 1`, and derives a next cursor from the returned boundary row only when lookahead proves another page.                    | Tie-heavy migrated-PostgreSQL traversal tests cover page-size-one boundaries, final/empty pages, and exactly-once traversal.                        |
 | F2 defines active as `profile.deleted_at IS NULL`; database triggers and services enforce zero/one active membership while preserving explicit owner/member roles for shared couple/group profiles. | Bootstrap remains collection-shaped but returns zero/one active profile; every authorization scope names and verifies the active member profile.    |
-| F3 now provides PostgreSQL command claims/fingerprints, permanent scope sequence metadata, immutable scoped events, and fenced leased jobs without importing them into existing request paths.      | The reusable substrate is complete and dormant; F4/F5 must supply reviewed retention/lease/retry policy and atomic domain producers before use.     |
-| `clientMessageId` is optional WebSocket correlation, is absent from the message table and REST insert, and is included in a message event broadcast to every subscriber.                            | Persisted idempotency must cover REST and WebSocket, while correlation/acknowledgement stays origin-only.                                           |
-| Message access/match checks happen before the message transaction; notification creation and socket broadcasts happen after it.                                                                     | Message, read/conversation mutation, canonical notification state, events, jobs, and idempotency are not atomic today.                              |
-| Like/unlike takes a profile-pair advisory lock, but send/reaction does not; unlike returns before broadcasting an upsert.                                                                           | Match state can race with chat mutations, and peers may retain stale matched state after unlike.                                                    |
-| Read advancement reads then writes in application logic, REST returns only the viewer's read state, and there is no total chat-unread endpoint.                                                     | Monotonic reads need a database predicate, peer reads need authorized recovery, and unread needs an authoritative aggregate/event.                  |
-| `ChatMessage` exposes only `replyToMessageId`; no bounded reply summary is projected.                                                                                                               | The client must currently load the target or show a fallback.                                                                                       |
+| F3 provides PostgreSQL command claims/fingerprints, permanent scope sequence metadata, immutable scoped events, and fenced leased jobs; F4 now uses the transaction variants for chat.              | The transactional chat producer has reviewed policy; F5 still owns delivery-worker retry/receipt/terminal policy.                                   |
+| `clientMessageId` is optional origin correlation; `chat.message.send` uses a required UUID key and canonical message events contain neither field.                                                  | REST/WebSocket/reconnect retries converge while peer/replay payloads cannot leak another origin's correlation or key.                               |
+| Message claim, lock-held auth/match validation, insert, sender read, conversation, notification, events, jobs, and outcome now share one PostgreSQL transaction.                                    | A logical message command commits all canonical effects or none; external I/O remains post-commit or deferred.                                      |
+| Like/unlike/rematch, send, and reaction now take the same sorted profile-pair advisory lock followed by the conversation row lock.                                                                  | Send/reaction versus unlike resolves to one valid serial result and unlike/rematch emits convergence events.                                        |
+| Read advancement uses a database tuple comparison sourced at PostgreSQL precision; REST returns both sorted participant positions and a total per-profile unread endpoint.                          | Concurrent/out-of-order acknowledgements cannot regress state, and badges do not require paging conversations.                                      |
+| `ChatMessage` now includes a persisted reply snapshot with a 160-grapheme safe preview and stable deleted/unavailable projections.                                                                  | REST and durable message events render bounded reply context without unbounded history or permanent asset URLs.                                     |
 | `createNotification` transactionally creates notification/delivery rows but performs socket/provider I/O directly after commit; read/archive broadcasts are process-local.                          | Preserve transactional rows, add durable cross-device events, and move delivery to leased workers.                                                  |
-| Chat message notifications use `channels: ["push"]`, and active conversation viewers are skipped before notification creation.                                                                      | Current behavior can omit canonical notification state; v2 must suppress only external push.                                                        |
+| F4 message sends always create canonical notification rows/events, one push delivery/job per enabled token, and no provider I/O; active viewers are not suppressed.                                 | F5 can consume minimal jobs and decide external push suppression without losing in-app/cross-device truth.                                          |
 | Provider outcome `accepted` is currently recorded as delivery status `delivered`; Expo receipts are not polled.                                                                                     | Provider acceptance is not device receipt and needs a compatibility-safe semantic and worker migration.                                             |
 | `src/services/push/apns-provider.ts`, the APNs schema migration, and push tests are present.                                                                                                        | APNs is implemented; remaining work is operational durability, invalid-token/retry handling, and physical-device verification in both environments. |
 | `/api/notifications/test/{userId}` has `auth: true` and rejects another user with `403`.                                                                                                            | The older iOS warning about an unauthenticated route is obsolete; protection remains a regression gate.                                             |
@@ -290,6 +291,10 @@ Implementation record:
 
 Dependencies: F3.
 
+Status: implementation complete on 2026-07-24. Production activation remains blocked until the
+protocol 2 client and F5 worker satisfy the strict-cutover preconditions in the
+[F4 rollout record](F4-TRANSACTIONAL-CHAT-ROLLOUT.md).
+
 - Require a persisted message idempotency key on both REST and WebSocket send paths. Scope the key
   to the authenticated actor/command so retries across reconnects and transports resolve to the
   same stored outcome.
@@ -341,6 +346,29 @@ Acceptance gates:
   durable message events.
 - Only the command origin receives its correlation/idempotency acknowledgement; peer and replayed
   canonical message events contain no other client's token.
+
+Acceptance evidence:
+
+- Migrated-PostgreSQL REST and real WebSocket tests cover first execution, exact replay,
+  cross-transport/reconnect replay, concurrent claims, actor-user independence, changed text,
+  reply, conversation, acting profile, and version conflicts, terminal rejected replay,
+  nonterminal `Retry-After`, and missing/malformed/invalid preclaim validation.
+- Failure injection at 13 semantic boundaries proves rollback of message, read, conversation,
+  notification/delivery, command, event/scope, and job state, including after outcome persistence.
+- Deterministic lock gates prove send-before-unlike and reaction-before-unlike serialize, while
+  unlike-before-send/reaction returns `conversation_not_matched`; reaction no-ops emit nothing.
+- Every tested unlike/rematch causal group contains one conversation state and both profile
+  upserts with independent per-scope sequences.
+- Concurrent old/middle/new read acknowledgements retain the greatest exact PostgreSQL tuple;
+  participant projections are authorized/sorted, the aggregate remains correct through
+  send/read/unlike/rematch, and REST/database/event values converge.
+- Reply tests prove a 160-extended-grapheme bound, REST/event identity, and stable
+  deleted/unavailable projections.
+- An active conversation viewer still receives canonical notification state; two enabled tokens
+  produce two `push` deliveries and two minimal version-1 jobs, no `in_app` row, and zero provider
+  calls.
+- OpenAPI 3.1 and AsyncAPI 3.1 validate with protocol 2/contract 2.0.0. Full F1, F2, F3,
+  APNs/Expo, and authenticated self-only notification regressions remain green.
 
 ### F5. Notification durability and delivery semantics
 
@@ -606,17 +634,17 @@ smuggled into F1 or the core Backend v2 rollout.
 | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | APNs described as absent in stale iOS text                                 | Already implemented and protected by F0 regression gates; F5 adds durable workers, receipt semantics, invalid-token handling, and sandbox/production physical-device verification. |
 | Incomplete/skipping pagination and defensive client deduplication          | Closed by F1 tie-heavy complete traversal, strict full-tuple predicates, and returned-boundary cursor tests; client workaround removal still follows explicit client rollout.      |
-| Unsafe resend and no durable message outbox                                | F3 reusable claim/event/job substrate is complete; F4 still owns cross-transport message wiring, normalization, common locking, and atomicity gates.                               |
+| Unsafe resend and no durable message outbox                                | Closed by F4 cross-transport persisted idempotency, common locking, atomic message/notification/event/job/outcome writes, and rollback gates.                                      |
 | Process-local realtime and reconnect-wide REST reconciliation              | F6 multi-node, Redis-outage, replay, handoff, and no-canonical-Redis gates; F7 removes the workaround only after client rollout.                                                   |
 | Missing typing cleanup/local expiry                                        | F6 TTL/final-lease aggregate `typing=false` and stale-node cleanup gates.                                                                                                          |
-| Peer read is transient and unrecoverable                                   | F4 authorized REST peer-read and durable conversation-read gates.                                                                                                                  |
-| Best-effort chat badge from paged rows                                     | F4 authoritative aggregate REST/profile-event gate.                                                                                                                                |
-| Unlike does not propagate canonical conversation state                     | F4 common-lock and unconditional unlike/rematch upsert gates.                                                                                                                      |
-| Reply target fallback                                                      | F4 bounded reply-summary parity gate.                                                                                                                                              |
-| Correlation token can reach peers                                          | F4 origin-only acknowledgement gate and F6 AsyncAPI origin/capability gate.                                                                                                        |
-| Message notification rows/count are missing while actively viewed          | F4 atomic notification creation plus F5 push-only suppression/cross-device event gates.                                                                                            |
+| Peer read is transient and unrecoverable                                   | Closed by F4 authorized two-participant REST projection, monotonic tuple, and durable conversation-read event gates.                                                               |
+| Best-effort chat badge from paged rows                                     | Closed by the F4 authoritative aggregate REST/profile-event gate.                                                                                                                  |
+| Unlike does not propagate canonical conversation state                     | Closed by the F4 common-lock and unconditional existing-conversation unlike/rematch state/upsert gates.                                                                            |
+| Reply target fallback                                                      | Closed by F4 persisted 160-grapheme reply-summary REST/event parity and deleted/unavailable gates.                                                                                 |
+| Correlation token can reach peers                                          | Closed for F4 sends by origin-only protocol 2 results; F6 must preserve the boundary when adding replay.                                                                           |
+| Message notification rows/count are missing while actively viewed          | Canonical state is closed by F4 atomic creation; F5 still owns push-only suppression and broader notification cross-device events.                                                 |
 | Notification cross-device read/archive/count ambiguity                     | F5 resulting-state payload and sequence-order gates.                                                                                                                               |
-| Direct push calls, no worker/receipt loop, misleading `delivered`          | F3 leased/fenced job primitives are complete; F5 still owns notification producers/workers, retry policy, Expo receipts, and provider-acceptance gates.                            |
+| Direct push calls, no worker/receipt loop, misleading `delivered`          | F4 message sends now produce minimal fenced jobs without provider I/O; F5 owns consumers, other producers, retry policy, Expo receipts, and provider-acceptance gates.             |
 | Sign-out cannot close one session's sockets across nodes                   | F6 session-ID registry/revocation-latency gate.                                                                                                                                    |
 | Unbounded socket subscriptions/commands/output and unclear close handling  | F6 bounds, backpressure, slow-consumer, rate/payload, close-class, and sanitized-observability gates.                                                                              |
 | Zero/one product behavior over permissive membership                       | Closed by F2 database/service concurrency, active/deleted semantics, and explicit shared-profile role/final-owner gates; P0 is required before multi-profile switching.            |
@@ -632,8 +660,8 @@ smuggled into F1 or the core Backend v2 rollout.
 2. Complete F2 before introducing stable profile-scoped event ownership.
 3. F3 reusable PostgreSQL substrate is complete; preserve its dormant producer boundary and
    concurrency/rollback gates.
-4. Implement F4 transactional chat correctness before relying on chat events/jobs in notification
-   or replay rollout.
+4. F4 transactional chat correctness is complete; preserve its command/lock/event contracts while
+   adding consumers.
 5. Implement F5 notification workers and cross-device semantics on F3/F4.
 6. Implement F6 distributed realtime/replay after the durable producers are correct.
 7. Perform F7 backend/client compatibility rollout; update the iOS snapshots only in its explicit
@@ -659,17 +687,18 @@ sequence is:
    delivery correctness yet.
 3. Backfill only state with a defined semantic mapping. Do not fabricate historical socket events;
    start each scope at a documented sequence boundary when necessary.
-4. Cut chat writes to F4 atomic transactions while dual-serving compatible v1 responses/events;
-   verify idempotency, lock races, reads, unread aggregates, reply summaries, and origin-only
-   acknowledgement before enabling automatic replay.
+4. After the protocol 2 client and F5 worker are ready, perform the approved coordinated strict
+   cutover to F4 atomic chat writes. Do not derive a key or fall through to legacy send. Verify
+   idempotency, lock races, reads, unread aggregates, reply summaries, origin-only acknowledgement,
+   job backlog, and cleanup lag before admitting production write traffic.
 5. Start F5 notification workers in shadow/limited mode, reconcile their outcomes against current
    delivery rows, then cut provider calls from request paths to durable jobs.
 6. Run F6 Redis fan-out/leases in shadow mode, compare multi-node presence/routing and replay with
-   PostgreSQL projections, then add protocol v2 while serving v1.
+   PostgreSQL projections, then extend protocol 2 additively with resume/replay.
 7. Roll out F7 replay/cursor-capable clients and monitor resync, lag, duplicate, mismatch,
    revocation, slow-consumer, job, receipt, and dead-letter rates.
-8. Stop v1 writes/serving only after the client compatibility window and operational gates.
-9. Remove v1 paths and misleading legacy status names in a later contraction migration.
+8. Remove misleading legacy notification status names only in a later reviewed contraction
+   migration; F4 message send has no protocol-1 fallback to remove.
 
 Every phase must be rollback-safe. Redis rollout is never a prerequisite for committing domain
 state. A worker or fan-out outage creates lag, not lost state.
@@ -699,16 +728,21 @@ should use per-suite schemas or explicit fixtures for mutable test state. Tests 
 
 ## Next task handoff
 
-The next orchestrated milestone should implement F4 transactional chat correctness on the F3
-transaction APIs. Require one persisted idempotency key across REST/WebSocket, define the reviewed
-command normalization and F3 policy inputs, use one common match/chat lock, and atomically commit
-the message/reaction domain change, monotonic sender read, conversation projection, canonical
-notification state, scoped events, jobs, and idempotency outcome. Add unread aggregates, authorized
-peer reads, bounded reply summaries, unlike/rematch convergence events, and origin-only command
-acknowledgements exactly as specified by F4.
+The next orchestrated milestone is F5 notification durability and delivery semantics. Consume only
+`notification.push.deliver` version `1`, whose payload is
+`{notificationDeliveryId}`. Claim with the approved 60-second lease, load the canonical
+notification/delivery/current token from PostgreSQL, and keep provider timeouts below the lease or
+add fenced renewal.
 
-Preserve F1 cursor wire/traversal behavior, every F2 ownership/remediation gate, the F3
-sequence/floor/fencing/rollback invariants, existing public endpoint envelopes, APNs/Expo
-semantics, and the bearer-authenticated self-only test-notification route. Do not implement F5
-workers or provider-policy changes, F6 replay/Redis runtime, P0 profile switching, P1-P5 product
-work, or iOS contract updates in F4.
+F5 must explicitly decide retry/backoff/jitter, provider `Retry-After`, terminal classification,
+unknown-outcome review, Expo receipt polling, APNs/Expo invalid-token handling, dead-letter
+alerting, and active-view push suppression. It must migrate remaining non-F4 producers and add
+resulting-state cross-device notification read/archive/count events without changing F4 command
+identity, normalization, common locks, event payloads, reply/read/unread behavior, or origin-only
+acknowledgements.
+
+Preserve F1 cursor wire/traversal behavior, every F2 ownership/remediation gate, all F3
+sequence/floor/lease/fence/final-attempt/rollback invariants, F4 atomicity and strict protocol 2
+contracts, existing APNs/Expo provider-acceptance semantics until their reviewed F5 transition,
+and the bearer-authenticated self-only test-notification route. Do not implement F6 Redis
+fan-out/replay, P0 profile switching, P1-P5 product work, or iOS changes as part of F5.
