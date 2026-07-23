@@ -1,15 +1,27 @@
 import type { SQL } from "drizzle-orm";
 
-import { and, asc, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 
+import type { DurableJsonObject } from "@/db/durable-schema";
 import type {
   ChatConversation,
-  ChatConversationReadState,
   ChatMessage,
+  ChatMessageReplySummary,
   ChatMessageReactionCount,
+  ChatParticipantReadPosition,
   ChatProfileSummary,
 } from "@/models/chat";
+import type { Notification } from "@/models/notification";
 
+import {
+  CHAT_MESSAGE_SEND_COMMAND_NAME,
+  CHAT_MESSAGE_SEND_COMMAND_VERSION,
+  CHAT_MESSAGE_SEND_RESULT_VERSION,
+  CHAT_EVENT_VERSION,
+  type TransactionalChatPolicy,
+  NOTIFICATION_PUSH_DELIVERY_JOB_KIND,
+  NOTIFICATION_PUSH_DELIVERY_JOB_VERSION,
+} from "@/config/transactional-chat-policy";
 import { user } from "@/db/auth-schema";
 import {
   chatConversation,
@@ -17,28 +29,38 @@ import {
   chatMessage,
   chatMessageReaction,
 } from "@/db/chat-schema";
-import {
-  profile,
-  profileMatch,
-  profileReaction,
-  profileReactionValues,
-  profileUser,
-} from "@/db/profile-schema";
+import { notification, notificationDelivery, userPushToken } from "@/db/notification-schema";
+import { profile, profileReaction, profileReactionValues, profileUser } from "@/db/profile-schema";
 import { decodeCursor, encodeCursor } from "@/lib/cursor";
 import { db } from "@/lib/db";
 import { findActiveProfileMembership } from "@/lib/profile-queries";
 
 import { chatSockets } from "./chat-sockets";
+import {
+  type CommandOutcome,
+  type DatabaseTransaction,
+  runIdempotentCommand,
+} from "./command-idempotency-service";
+import { enqueueDeliveryJobInTransaction } from "./delivery-job-service";
+import {
+  appendDurableEventsInTransaction,
+  createDurableEventCausalId,
+  type DurableEventInput,
+} from "./durable-event-service";
 import { createNotification } from "./notification-service";
+import { notificationSockets } from "./notification-sockets";
 
 type ProfileReaction = (typeof profileReactionValues)[number];
 type ChatServiceErrorCode =
   | "conversation_not_found"
-  | "empty_message"
+  | "idempotency_conflict"
+  | "idempotency_in_progress"
+  | "invalid_message"
+  | "invalid_reaction"
+  | "invalid_reply_target"
   | "message_not_found"
-  | "not_matched"
-  | "profile_not_found"
-  | "reply_not_found";
+  | "conversation_not_matched"
+  | "profile_not_found";
 
 type ChatServiceResult<Value> =
   | {
@@ -55,6 +77,66 @@ type ConversationAccess = {
   conversation: ConversationRow;
   otherProfileId: string;
 };
+
+type SendMessageRejectedResult = {
+  version: typeof CHAT_MESSAGE_SEND_RESULT_VERSION;
+  status: "rejected";
+  httpStatus: 404 | 409 | 422;
+  error: {
+    code: "conversation_not_found" | "conversation_not_matched" | "invalid_reply_target";
+    message: string;
+  };
+};
+
+type SendMessageSucceededResult = {
+  version: typeof CHAT_MESSAGE_SEND_RESULT_VERSION;
+  status: "succeeded";
+  message: DurableChatMessage;
+};
+
+type StoredSendMessageResult = SendMessageRejectedResult | SendMessageSucceededResult;
+
+export type SendTextMessageResult =
+  | {
+      ok: true;
+      data: ChatMessage;
+      replayed: boolean;
+    }
+  | {
+      ok: false;
+      code:
+        | "conversation_not_found"
+        | "conversation_not_matched"
+        | "idempotency_conflict"
+        | "idempotency_in_progress"
+        | "idempotency_key_required"
+        | "invalid_message"
+        | "invalid_idempotency_key"
+        | "invalid_reply_target";
+      message: string;
+      httpStatus: 400 | 404 | 409 | 422;
+      replayed?: boolean;
+      terminalCommandResult?: boolean;
+    };
+
+export type ChatTransactionFailurePoint =
+  | "after_idempotency_claim"
+  | "after_authorization"
+  | "after_common_lock"
+  | "after_match_validation"
+  | "after_reply_validation"
+  | "after_message_insert"
+  | "after_sender_read"
+  | "after_conversation_projection"
+  | "after_notification_state"
+  | "after_durable_events"
+  | "after_delivery_jobs"
+  | "before_idempotency_outcome"
+  | "after_idempotency_outcome";
+
+export type ChatTransactionFailureInjector = (
+  point: ChatTransactionFailurePoint,
+) => Promise<void> | void;
 
 type RawConversationRow = {
   id: string;
@@ -84,6 +166,11 @@ type RawConversationRow = {
 const defaultConversationLimit = 20;
 const defaultMessageLimit = 30;
 const maxPageLimit = 100;
+const canonicalMessageIdempotencyKeyPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+export const isCanonicalMessageIdempotencyKey = (value: string) =>
+  canonicalMessageIdempotencyKeyPattern.test(value);
 
 const conversationFields = {
   id: chatConversation.id,
@@ -102,14 +189,89 @@ const messageFields = {
   content: chatMessage.content,
   attachments: chatMessage.attachments,
   replyToMessageId: chatMessage.replyToMessageId,
+  replySummary: chatMessage.replySummary,
   editedAt: chatMessage.editedAt,
   deletedAt: chatMessage.deletedAt,
   createdAt: chatMessage.createdAt,
   updatedAt: chatMessage.updatedAt,
 };
 
+const notificationFields = {
+  id: notification.id,
+  createdAt: notification.createdAt,
+  updatedAt: notification.updatedAt,
+  type: notification.type,
+  title: notification.title,
+  body: notification.body,
+  data: notification.data,
+  readAt: notification.readAt,
+  archivedAt: notification.archivedAt,
+  actorProfileId: notification.actorProfileId,
+  relatedProfileId: notification.relatedProfileId,
+};
+
 type ChatMessageRow = Pick<typeof chatMessage.$inferSelect, keyof typeof messageFields>;
 type ConversationRow = Pick<typeof chatConversation.$inferSelect, keyof typeof conversationFields>;
+type DurableChatMessage = Omit<
+  ChatMessage,
+  "createdAt" | "deletedAt" | "editedAt" | "updatedAt"
+> & {
+  createdAt: string;
+  deletedAt: string | null;
+  editedAt: string | null;
+  updatedAt: string;
+};
+
+type DurableNotification = Omit<
+  Notification,
+  "archivedAt" | "createdAt" | "readAt" | "updatedAt"
+> & {
+  archivedAt: string | null;
+  createdAt: string;
+  readAt: string | null;
+  updatedAt: string;
+};
+
+const toDurableChatMessage = (message: ChatMessage): DurableChatMessage => ({
+  ...message,
+  createdAt: message.createdAt.toISOString(),
+  deletedAt: message.deletedAt?.toISOString() ?? null,
+  editedAt: message.editedAt?.toISOString() ?? null,
+  updatedAt: message.updatedAt.toISOString(),
+});
+
+const fromDurableChatMessage = (message: DurableChatMessage): ChatMessage => ({
+  ...message,
+  createdAt: new Date(message.createdAt),
+  deletedAt: message.deletedAt ? new Date(message.deletedAt) : null,
+  editedAt: message.editedAt ? new Date(message.editedAt) : null,
+  updatedAt: new Date(message.updatedAt),
+});
+
+const toDurableNotification = (value: Notification): DurableNotification => ({
+  ...value,
+  archivedAt: value.archivedAt?.toISOString() ?? null,
+  createdAt: value.createdAt.toISOString(),
+  readAt: value.readAt?.toISOString() ?? null,
+  updatedAt: value.updatedAt.toISOString(),
+});
+
+const toNotification = (
+  row: Pick<typeof notification.$inferSelect, keyof typeof notificationFields>,
+): Notification => ({
+  ...row,
+  data: row.data ?? {},
+});
+
+const toDurableConversation = (conversation: ChatConversation) =>
+  JSON.parse(JSON.stringify(conversation)) as DurableJsonObject;
+
+const runFailureInjector = async (
+  failureInjector: ChatTransactionFailureInjector | undefined,
+  point: ChatTransactionFailurePoint,
+) => {
+  await failureInjector?.(point);
+};
 
 const normalizeLimit = (limit: number | undefined, fallback: number) =>
   Math.min(Math.max(Math.trunc(limit ?? fallback), 1), maxPageLimit);
@@ -125,7 +287,360 @@ const getOtherProfileId = (
 ) =>
   conversation.profileOneId === profileId ? conversation.profileTwoId : conversation.profileOneId;
 
-const toConversation = (row: RawConversationRow): ChatConversation => ({
+const lockProfilePairInTransaction = async ({
+  profileId,
+  targetProfileId,
+  tx,
+}: {
+  profileId: string;
+  targetProfileId: string;
+  tx: DatabaseTransaction;
+}) => {
+  const pair = getProfilePair(profileId, targetProfileId);
+  const key = `chat-profile-pair:${pair.profileOneId}:${pair.profileTwoId}`;
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${key}, 0))`);
+
+  const [conversation] = await tx
+    .select(conversationFields)
+    .from(chatConversation)
+    .where(
+      and(
+        eq(chatConversation.profileOneId, pair.profileOneId),
+        eq(chatConversation.profileTwoId, pair.profileTwoId),
+      ),
+    )
+    .for("update")
+    .limit(1);
+
+  return { conversation: conversation ?? null, pair };
+};
+
+const findActiveProfileMembershipInTransaction = (
+  tx: DatabaseTransaction,
+  profileId: string,
+  userId: string,
+) =>
+  tx
+    .select({ profileId: profileUser.profileId })
+    .from(profileUser)
+    .innerJoin(profile, eq(profile.id, profileUser.profileId))
+    .where(
+      and(
+        eq(profileUser.profileId, profileId),
+        eq(profileUser.userId, userId),
+        isNull(profile.deletedAt),
+      ),
+    )
+    .limit(1);
+
+const areProfilesMatchedInTransaction = async (
+  tx: DatabaseTransaction,
+  profileId: string,
+  targetProfileId: string,
+) => {
+  const [result] = await tx
+    .select({ count: sql<number>`count(*)::int` })
+    .from(profileReaction)
+    .where(
+      or(
+        and(
+          eq(profileReaction.profileId, profileId),
+          eq(profileReaction.targetProfileId, targetProfileId),
+          eq(profileReaction.reaction, "like"),
+        ),
+        and(
+          eq(profileReaction.profileId, targetProfileId),
+          eq(profileReaction.targetProfileId, profileId),
+          eq(profileReaction.reaction, "like"),
+        ),
+      ),
+    );
+
+  return Number(result?.count ?? 0) === 2;
+};
+
+const getChatUnreadCountInTransaction = async (tx: ChatDatabaseExecutor, profileId: string) => {
+  const [result] = (await tx.execute(sql`
+    select count(*)::int as count
+    from ${chatMessage} message
+    inner join ${chatConversation} conversation
+      on conversation.id = message.conversation_id
+    left join ${chatConversationReadState} read_state
+      on read_state.conversation_id = conversation.id
+      and read_state.profile_id = ${profileId}
+    where (
+      conversation.profile_one_id = ${profileId}
+      or conversation.profile_two_id = ${profileId}
+    )
+      and message.sender_profile_id is distinct from ${profileId}
+      and (
+        read_state.conversation_id is null
+        or read_state.last_read_message_id is null
+        or message.created_at > read_state.last_read_message_created_at
+        or (
+          message.created_at = read_state.last_read_message_created_at
+          and message.id > read_state.last_read_message_id
+        )
+      )
+  `)) as Array<{ count: number }>;
+
+  return Number(result?.count ?? 0);
+};
+
+const advanceReadPositionInTransaction = async ({
+  conversationId,
+  message,
+  profileId,
+  tx,
+}: {
+  conversationId: string;
+  message: { id: string };
+  profileId: string;
+  tx: DatabaseTransaction;
+}) => {
+  const messageCreatedAt = sql<Date>`(
+    select ${chatMessage.createdAt}
+    from ${chatMessage}
+    where ${chatMessage.id} = ${message.id}
+      and ${chatMessage.conversationId} = ${conversationId}
+  )`;
+  const [advanced] = await tx
+    .insert(chatConversationReadState)
+    .values({
+      conversationId,
+      profileId,
+      lastReadMessageId: message.id,
+      lastReadMessageCreatedAt: messageCreatedAt,
+      lastReadAt: sql`clock_timestamp()`,
+      updatedAt: sql`clock_timestamp()`,
+    })
+    .onConflictDoUpdate({
+      target: [chatConversationReadState.conversationId, chatConversationReadState.profileId],
+      set: {
+        lastReadMessageId: sql`excluded.last_read_message_id`,
+        lastReadMessageCreatedAt: sql`excluded.last_read_message_created_at`,
+        lastReadAt: sql`clock_timestamp()`,
+        updatedAt: sql`clock_timestamp()`,
+      },
+      setWhere: or(
+        isNull(chatConversationReadState.lastReadMessageCreatedAt),
+        sql`(
+          ${chatConversationReadState.lastReadMessageCreatedAt},
+          ${chatConversationReadState.lastReadMessageId}
+        ) < (
+          excluded.last_read_message_created_at,
+          excluded.last_read_message_id
+        )`,
+      ),
+    })
+    .returning({
+      profileId: chatConversationReadState.profileId,
+      lastReadMessageId: chatConversationReadState.lastReadMessageId,
+      lastReadMessageCreatedAt: chatConversationReadState.lastReadMessageCreatedAt,
+      lastReadAt: chatConversationReadState.lastReadAt,
+    });
+
+  return advanced ?? null;
+};
+
+const boundTextByGraphemes = (text: string, maximum: number) => {
+  const Segmenter = (
+    Intl as unknown as {
+      Segmenter: new (
+        locale: undefined,
+        options: { granularity: "grapheme" },
+      ) => {
+        segment: (value: string) => Iterable<{ segment: string }>;
+      };
+    }
+  ).Segmenter;
+  const segmenter = new Segmenter(undefined, { granularity: "grapheme" });
+  const segments = segmenter.segment(text)[Symbol.iterator]();
+  let preview = "";
+  let count = 0;
+
+  while (count < maximum) {
+    const next = segments.next();
+    if (next.done) return { text: preview, truncated: false };
+    preview += next.value.segment;
+    count += 1;
+  }
+
+  return {
+    text: preview,
+    truncated: !segments.next().done,
+  };
+};
+
+const createReplySummary = (
+  target: Pick<
+    typeof chatMessage.$inferSelect,
+    "content" | "id" | "messageType" | "senderProfileId"
+  >,
+): ChatMessageReplySummary => ({
+  messageId: target.id,
+  senderProfileId: target.senderProfileId,
+  messageType: target.messageType,
+  state: "available",
+  preview:
+    target.messageType === "image"
+      ? { kind: "image" }
+      : target.content === null
+        ? null
+        : {
+            kind: "text",
+            ...boundTextByGraphemes(target.content, 160),
+          },
+});
+
+const getUnreadNotificationCountInTransaction = async (tx: DatabaseTransaction, userId: string) => {
+  const [result] = await tx
+    .select({ count: sql<number>`count(*)::int` })
+    .from(notification)
+    .where(
+      and(
+        eq(notification.recipientUserId, userId),
+        isNull(notification.readAt),
+        isNull(notification.archivedAt),
+      ),
+    );
+
+  return Number(result?.count ?? 0);
+};
+
+type CreatedMessageNotification = {
+  notification: Notification;
+  recipientUserId: string;
+  unreadCount: number;
+};
+
+const createMessageNotificationStateInTransaction = async ({
+  conversationId,
+  message,
+  recipientProfileId,
+  senderProfileId,
+  senderUserId,
+  tx,
+}: {
+  conversationId: string;
+  message: ChatMessage;
+  recipientProfileId: string;
+  senderProfileId: string;
+  senderUserId: string;
+  tx: DatabaseTransaction;
+}) => {
+  const [sender] = await tx
+    .select({ name: profile.name })
+    .from(profile)
+    .where(eq(profile.id, senderProfileId))
+    .limit(1);
+  const recipients = await tx
+    .select({ userId: profileUser.userId })
+    .from(profileUser)
+    .where(
+      and(
+        eq(profileUser.profileId, recipientProfileId),
+        sql`${profileUser.userId} <> ${senderUserId}`,
+      ),
+    )
+    .orderBy(profileUser.userId);
+
+  const senderName = sender?.name ?? "Someone";
+  const notificationPreview = boundTextByGraphemes(message.content ?? "Sent a message", 120);
+  const body = notificationPreview.truncated
+    ? `${notificationPreview.text.slice(0, -3)}...`
+    : notificationPreview.text;
+  const createdNotifications: CreatedMessageNotification[] = [];
+  const pushDeliveryIds: string[] = [];
+
+  for (const recipient of recipients) {
+    const [createdRow] = await tx
+      .insert(notification)
+      .values({
+        recipientUserId: recipient.userId,
+        type: "message",
+        title: `New message from ${senderName}`,
+        body,
+        actorProfileId: senderProfileId,
+        relatedProfileId: recipientProfileId,
+        data: {
+          conversationId,
+          messageId: message.id,
+          senderProfileId,
+          recipientProfileId,
+          messageType: message.messageType,
+        },
+      })
+      .returning(notificationFields);
+    const created = toNotification(createdRow);
+
+    const tokens = await tx
+      .select({
+        id: userPushToken.id,
+        provider: userPushToken.provider,
+        apnsEnvironment: userPushToken.apnsEnvironment,
+      })
+      .from(userPushToken)
+      .where(and(eq(userPushToken.userId, recipient.userId), eq(userPushToken.enabled, true)))
+      .orderBy(userPushToken.id);
+
+    if (tokens.length) {
+      const deliveries = await tx
+        .insert(notificationDelivery)
+        .values(
+          tokens.map((token) => ({
+            notificationId: created.id,
+            recipientUserId: recipient.userId,
+            channel: "push" as const,
+            status: "pending" as const,
+            provider: token.provider,
+            apnsEnvironment: token.apnsEnvironment,
+            pushTokenId: token.id,
+          })),
+        )
+        .returning({ id: notificationDelivery.id });
+      pushDeliveryIds.push(...deliveries.map(({ id }) => id));
+    }
+
+    createdNotifications.push({
+      notification: created,
+      recipientUserId: recipient.userId,
+      unreadCount: await getUnreadNotificationCountInTransaction(tx, recipient.userId),
+    });
+  }
+
+  return {
+    createdNotifications,
+    pushDeliveryIds,
+  };
+};
+
+const enqueueMessagePushJobsInTransaction = async ({
+  deliveryIds,
+  policy,
+  tx,
+}: {
+  deliveryIds: string[];
+  policy: TransactionalChatPolicy;
+  tx: DatabaseTransaction;
+}) => {
+  for (const notificationDeliveryId of deliveryIds) {
+    await enqueueDeliveryJobInTransaction({
+      availableInSeconds: policy.pushJobAvailableInSeconds,
+      jobKind: NOTIFICATION_PUSH_DELIVERY_JOB_KIND,
+      jobVersion: NOTIFICATION_PUSH_DELIVERY_JOB_VERSION,
+      maxAttempts: policy.pushJobMaxAttempts,
+      payload: { notificationDeliveryId },
+      terminalRetentionSeconds: policy.pushJobTerminalRetentionSeconds,
+      tx,
+    });
+  }
+};
+
+const toConversation = (
+  row: RawConversationRow,
+  participantReadPositions: ChatParticipantReadPosition[],
+): ChatConversation => ({
   id: row.id,
   profileOneId: row.profileOneId,
   profileTwoId: row.profileTwoId,
@@ -155,6 +670,7 @@ const toConversation = (row: RawConversationRow): ChatConversation => ({
     firstUnreadMessageId: row.firstUnreadMessageId,
     firstUnreadMessageCreatedAt: row.firstUnreadMessageCreatedAt,
   },
+  participantReadPositions,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
 });
@@ -163,52 +679,124 @@ const toMessage = (
   row: ChatMessageRow,
   reactionCounts: ChatMessageReactionCount[] = [],
   viewerReactions: string[] = [],
+  replySummary: ChatMessageReplySummary | null = row.replySummary,
 ): ChatMessage => ({
   ...row,
   attachments: row.attachments ?? [],
+  replySummary,
   reactionCounts,
   viewerReactions,
 });
 
-type ReadPosition = {
-  id: string | null;
-  createdAt: Date;
-};
+type ChatDatabaseExecutor = typeof db | DatabaseTransaction;
 
-const compareReadPositions = (a: ReadPosition, b: ReadPosition) => {
-  const timeDelta = a.createdAt.getTime() - b.createdAt.getTime();
-  if (timeDelta !== 0) return timeDelta;
-  if (a.id && b.id) return a.id.localeCompare(b.id);
-  if (a.id && !b.id) return 1;
-  if (!a.id && b.id) return -1;
-  return 0;
-};
-
-const getExistingReadPosition = (
-  row:
-    | {
-        lastReadMessageId: string | null;
-        lastReadAt: Date;
-        readMessageCreatedAt: Date | null;
-      }
-    | undefined,
+const loadParticipantReadPositions = async (
+  executor: ChatDatabaseExecutor,
+  conversationIds: string[],
 ) => {
-  if (!row) return null;
+  const positionsByConversationId = new Map<string, ChatParticipantReadPosition[]>();
+  if (!conversationIds.length) return positionsByConversationId;
+  const conversationIdList = sql.join(
+    conversationIds.map((conversationId) => sql`${conversationId}::uuid`),
+    sql`, `,
+  );
 
-  if (row.lastReadMessageId && row.readMessageCreatedAt) {
-    return {
-      id: row.lastReadMessageId,
-      createdAt: row.readMessageCreatedAt,
-    };
+  const rows = (await executor.execute(sql`
+    select
+      conversation.id as "conversationId",
+      participant.profile_id as "profileId",
+      read_state.last_read_message_id as "lastReadMessageId",
+      read_state.last_read_message_created_at as "lastReadMessageCreatedAt",
+      read_state.last_read_at as "lastReadAt"
+    from ${chatConversation} conversation
+    cross join lateral (
+      values (conversation.profile_one_id), (conversation.profile_two_id)
+    ) participant(profile_id)
+    left join ${chatConversationReadState} read_state
+      on read_state.conversation_id = conversation.id
+      and read_state.profile_id = participant.profile_id
+    where conversation.id in (${conversationIdList})
+    order by conversation.id, participant.profile_id
+  `)) as Array<{
+    conversationId: string;
+    profileId: string;
+    lastReadMessageId: string | null;
+    lastReadMessageCreatedAt: Date | null;
+    lastReadAt: Date | null;
+  }>;
+
+  for (const row of rows) {
+    const positions = positionsByConversationId.get(row.conversationId) ?? [];
+    positions.push({
+      profileId: row.profileId,
+      lastReadMessageId: row.lastReadMessageId,
+      lastReadMessageCreatedAt: row.lastReadMessageCreatedAt,
+      lastReadAt: row.lastReadAt,
+    });
+    positionsByConversationId.set(row.conversationId, positions);
   }
 
-  return {
-    id: null,
-    createdAt: row.lastReadAt,
-  };
+  return positionsByConversationId;
 };
 
-const loadReactionSummaries = async (messageIds: string[], viewerProfileId: string) => {
+const projectReplySummary = (
+  summary: ChatMessageReplySummary | null,
+  targetState: { deletedAt: Date | null } | undefined,
+) => {
+  if (!summary) return null;
+  if (!targetState) {
+    return {
+      ...summary,
+      state: "unavailable" as const,
+      preview: null,
+    };
+  }
+  if (targetState.deletedAt) {
+    return {
+      ...summary,
+      state: "deleted" as const,
+      preview: null,
+    };
+  }
+  if (summary.state !== "available") {
+    return {
+      ...summary,
+      preview: null,
+    };
+  }
+  return summary;
+};
+
+const loadReplySummaryStates = async (executor: ChatDatabaseExecutor, rows: ChatMessageRow[]) => {
+  const targetIds = Array.from(
+    new Set(
+      rows
+        .map(({ replySummary }) => replySummary?.messageId)
+        .filter((messageId): messageId is string => Boolean(messageId)),
+    ),
+  );
+  const targetStates = new Map<string, { deletedAt: Date | null }>();
+  if (!targetIds.length) return targetStates;
+
+  const targets = await executor
+    .select({
+      id: chatMessage.id,
+      deletedAt: chatMessage.deletedAt,
+    })
+    .from(chatMessage)
+    .where(inArray(chatMessage.id, targetIds));
+
+  for (const target of targets) {
+    targetStates.set(target.id, { deletedAt: target.deletedAt });
+  }
+  return targetStates;
+};
+
+const loadReactionSummaries = async (
+  messageIds: string[],
+  viewerProfileId: string,
+  executor: ChatDatabaseExecutor = db,
+) => {
   const reactionCountsByMessageId = new Map<string, ChatMessageReactionCount[]>();
   const viewerReactionsByMessageId = new Map<string, string[]>();
 
@@ -219,7 +807,7 @@ const loadReactionSummaries = async (messageIds: string[], viewerProfileId: stri
     };
   }
 
-  const counts = await db
+  const counts = await executor
     .select({
       messageId: chatMessageReaction.messageId,
       emoji: chatMessageReaction.emoji,
@@ -239,7 +827,7 @@ const loadReactionSummaries = async (messageIds: string[], viewerProfileId: stri
     reactionCountsByMessageId.set(count.messageId, messageCounts);
   }
 
-  const viewerReactions = await db
+  const viewerReactions = await executor
     .select({
       messageId: chatMessageReaction.messageId,
       emoji: chatMessageReaction.emoji,
@@ -265,8 +853,12 @@ const loadReactionSummaries = async (messageIds: string[], viewerProfileId: stri
   };
 };
 
-const getMessageWithReactions = async (messageId: string, viewerProfileId: string) => {
-  const [row] = await db
+const getMessageWithReactions = async (
+  messageId: string,
+  viewerProfileId: string,
+  executor: ChatDatabaseExecutor = db,
+) => {
+  const [row] = await executor
     .select(messageFields)
     .from(chatMessage)
     .where(eq(chatMessage.id, messageId))
@@ -277,12 +869,18 @@ const getMessageWithReactions = async (messageId: string, viewerProfileId: strin
   const { reactionCountsByMessageId, viewerReactionsByMessageId } = await loadReactionSummaries(
     [messageId],
     viewerProfileId,
+    executor,
   );
+  const replyTargetStates = await loadReplySummaryStates(executor, [row]);
 
   return toMessage(
     row,
     reactionCountsByMessageId.get(messageId),
     viewerReactionsByMessageId.get(messageId),
+    projectReplySummary(
+      row.replySummary,
+      row.replySummary ? replyTargetStates.get(row.replySummary.messageId) : undefined,
+    ),
   );
 };
 
@@ -369,12 +967,14 @@ const listConversationPeerProfileIds = async (profileId: string) => {
 
 const loadChatConversationForProfile = async ({
   conversationId,
+  executor = db,
   profileId,
 }: {
   conversationId: string;
+  executor?: ChatDatabaseExecutor;
   profileId: string;
 }) => {
-  const rows = (await db.execute(sql`
+  const rows = (await executor.execute(sql`
     with conversation_row as (
       select
         conversation.id,
@@ -435,8 +1035,6 @@ const loadChatConversationForProfile = async ({
     left join ${chatConversationReadState} read_state
       on read_state.conversation_id = conversation_row.id
       and read_state.profile_id = ${profileId}
-    left join ${chatMessage} read_message
-      on read_message.id = read_state.last_read_message_id
     left join lateral (
       select
         message.id,
@@ -459,30 +1057,20 @@ const loadChatConversationForProfile = async ({
         and unread_message.sender_profile_id is distinct from ${profileId}
         and (
           read_state.conversation_id is null
+          or read_state.last_read_message_id is null
+          or unread_message.created_at > read_state.last_read_message_created_at
           or (
-            read_state.last_read_message_id is not null
-            and read_message.id is not null
-            and (
-              unread_message.created_at > read_message.created_at
-              or (
-                unread_message.created_at = read_message.created_at
-                and unread_message.id > read_message.id
-              )
-            )
-          )
-          or (
-            (
-              read_state.last_read_message_id is null
-              or read_message.id is null
-            )
-            and unread_message.created_at > read_state.last_read_at
+            unread_message.created_at = read_state.last_read_message_created_at
+            and unread_message.id > read_state.last_read_message_id
           )
         )
     ) unread_state on true
   `)) as RawConversationRow[];
 
   const row = rows[0];
-  return row ? toConversation(row) : null;
+  if (!row) return null;
+  const positions = await loadParticipantReadPositions(executor, [row.id]);
+  return toConversation(row, positions.get(row.id) ?? []);
 };
 
 export const broadcastConversationUpsert = async (conversationId: string) => {
@@ -535,8 +1123,6 @@ export const getChatPresenceSnapshot = async ({
     };
   }
 
-  await syncConversationsForProfileMatches(profileId);
-
   const peerProfileIds = await listConversationPeerProfileIds(profileId);
   return {
     ok: true,
@@ -555,86 +1141,6 @@ export const broadcastChatPresenceChanged = async (profileId: string, online: bo
     profileId,
     online,
   });
-};
-
-const areProfilesMatched = async (profileId: string, targetProfileId: string) => {
-  const [result] = await db
-    .select({
-      count: sql<number>`count(*)::int`,
-    })
-    .from(profileReaction)
-    .where(
-      or(
-        and(
-          eq(profileReaction.profileId, profileId),
-          eq(profileReaction.targetProfileId, targetProfileId),
-          eq(profileReaction.reaction, "like"),
-        ),
-        and(
-          eq(profileReaction.profileId, targetProfileId),
-          eq(profileReaction.targetProfileId, profileId),
-          eq(profileReaction.reaction, "like"),
-        ),
-      ),
-    );
-
-  return Number(result?.count ?? 0) === 2;
-};
-
-const notifyAbsentRecipientUsers = async ({
-  conversation,
-  message,
-  recipientProfileId,
-  senderProfileId,
-  senderUserId,
-}: {
-  conversation: ConversationRow;
-  message: ChatMessage;
-  recipientProfileId: string;
-  senderProfileId: string;
-  senderUserId: string;
-}) => {
-  const activeUserIds = chatSockets.getActiveUserIdsForConversationSubscribers(conversation.id);
-  const [senderProfile] = await db
-    .select({
-      name: profile.name,
-    })
-    .from(profile)
-    .where(eq(profile.id, senderProfileId))
-    .limit(1);
-
-  const recipients = await db
-    .select({
-      userId: user.id,
-    })
-    .from(profileUser)
-    .innerJoin(user, eq(profileUser.userId, user.id))
-    .where(eq(profileUser.profileId, recipientProfileId));
-
-  const senderName = senderProfile?.name ?? "Someone";
-  const content = message.content ?? "Sent a message";
-  const preview = content.length > 120 ? `${content.slice(0, 117)}...` : content;
-
-  for (const recipient of recipients) {
-    if (recipient.userId === senderUserId || activeUserIds.has(recipient.userId)) continue;
-
-    await createNotification({
-      recipientUserId: recipient.userId,
-      type: "message",
-      title: `New message from ${senderName}`,
-      body: preview,
-      actorProfileId: senderProfileId,
-      relatedProfileId: recipientProfileId,
-      data: {
-        conversationId: conversation.id,
-        messageId: message.id,
-        senderProfileId,
-        recipientProfileId,
-        messageType: message.messageType,
-      },
-      channels: ["push"],
-    });
-  }
 };
 
 const notifyProfileMatchUsers = async ({
@@ -693,40 +1199,40 @@ const notifyProfileMatchUsers = async ({
   }
 };
 
-export const syncConversationsForProfileMatches = async (profileId: string) => {
-  await db.execute(sql`
-    insert into ${chatConversation} (
-      profile_one_id,
-      profile_two_id,
-      created_at,
-      updated_at
-    )
-    select
-      least(${profileMatch.profileId}, ${profileMatch.matchedProfileId}),
-      greatest(${profileMatch.profileId}, ${profileMatch.matchedProfileId}),
-      min(${profileMatch.matchedAt}),
-      now()
-    from ${profileMatch}
-    where ${profileMatch.profileId} = ${profileId}
-    group by 1, 2
-    on conflict (profile_one_id, profile_two_id) do nothing
-  `);
-};
-
 export const setProfileReactionAndSyncConversation = async ({
+  policy,
   profileId,
   reaction,
   targetProfileId,
+  userId,
 }: {
+  policy: TransactionalChatPolicy;
   profileId: string;
   reaction: ProfileReaction;
   targetProfileId: string;
+  userId: string;
 }) => {
-  const pair = getProfilePair(profileId, targetProfileId);
-  const pairLockKey = `chat_conversation:${pair.profileOneId}:${pair.profileTwoId}`;
-
   const result = await db.transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${pairLockKey}))`);
+    const { conversation: lockedConversation, pair } = await lockProfilePairInTransaction({
+      profileId,
+      targetProfileId,
+      tx,
+    });
+    const [[profileAccess], [target]] = await Promise.all([
+      findActiveProfileMembershipInTransaction(tx, profileId, userId),
+      tx
+        .select({ id: profile.id })
+        .from(profile)
+        .where(and(eq(profile.id, targetProfileId), isNull(profile.deletedAt)))
+        .limit(1),
+    ]);
+    if (!profileAccess || !target) {
+      return {
+        ok: false as const,
+        code: "profile_not_found" as const,
+        message: "Profile not found",
+      };
+    }
 
     const [existingReaction] = await tx
       .select({
@@ -753,92 +1259,88 @@ export const setProfileReactionAndSyncConversation = async ({
         target: [profileReaction.profileId, profileReaction.targetProfileId],
         set: {
           reaction,
-          updatedAt: new Date(),
+          updatedAt: sql`clock_timestamp()`,
         },
       });
 
-    if (reaction !== "like") {
-      return {
-        shouldNotifyMatch: false,
-        reaction,
-        matched: false,
-        conversationId: null,
-      };
+    const matched = await areProfilesMatchedInTransaction(tx, profileId, targetProfileId);
+    let conversation = lockedConversation;
+    if (matched && !conversation) {
+      [conversation] = await tx.insert(chatConversation).values(pair).returning(conversationFields);
     }
 
-    const [matchCount] = await tx
-      .select({
-        count: sql<number>`count(*)::int`,
-      })
-      .from(profileReaction)
-      .where(
-        or(
-          and(
-            eq(profileReaction.profileId, profileId),
-            eq(profileReaction.targetProfileId, targetProfileId),
-            eq(profileReaction.reaction, "like"),
-          ),
-          and(
-            eq(profileReaction.profileId, targetProfileId),
-            eq(profileReaction.targetProfileId, profileId),
-            eq(profileReaction.reaction, "like"),
-          ),
-        ),
+    if (conversation) {
+      [conversation] = await tx
+        .update(chatConversation)
+        .set({ updatedAt: sql`clock_timestamp()` })
+        .where(eq(chatConversation.id, conversation.id))
+        .returning(conversationFields);
+
+      const participantProfileIds = [pair.profileOneId, pair.profileTwoId];
+      const projections = await Promise.all(
+        participantProfileIds.map(async (participantProfileId) => ({
+          conversation: await loadChatConversationForProfile({
+            conversationId: conversation!.id,
+            executor: tx,
+            profileId: participantProfileId,
+          }),
+          profileId: participantProfileId,
+        })),
       );
-
-    if (Number(matchCount?.count ?? 0) !== 2) {
-      return {
-        shouldNotifyMatch: false,
-        reaction,
-        matched: false,
-        conversationId: null,
-      };
-    }
-
-    const [createdConversation] = await tx
-      .insert(chatConversation)
-      .values(pair)
-      .onConflictDoNothing({
-        target: [chatConversation.profileOneId, chatConversation.profileTwoId],
-      })
-      .returning({
-        id: chatConversation.id,
+      const causalId = createDurableEventCausalId();
+      await appendDurableEventsInTransaction({
+        causalId,
+        events: [
+          {
+            scope: { kind: "chat-conversation", id: conversation.id },
+            eventType: "chat.conversation.state",
+            eventVersion: CHAT_EVENT_VERSION,
+            payload: {
+              conversationId: conversation.id,
+              isMatched: matched,
+              updatedAt: conversation.updatedAt.toISOString(),
+            },
+            retentionSeconds: policy.eventRetentionSeconds,
+          },
+          ...projections
+            .filter(
+              (
+                entry,
+              ): entry is {
+                conversation: ChatConversation;
+                profileId: string;
+              } => entry.conversation !== null,
+            )
+            .map(({ conversation: projection, profileId: participantProfileId }) => ({
+              scope: { kind: "chat-profile" as const, id: participantProfileId },
+              eventType: "chat.conversation.upsert",
+              eventVersion: CHAT_EVENT_VERSION,
+              payload: {
+                profileId: participantProfileId,
+                conversation: toDurableConversation(projection),
+              },
+              retentionSeconds: policy.eventRetentionSeconds,
+            })),
+        ],
+        tx,
       });
-
-    if (createdConversation) {
-      return {
-        shouldNotifyMatch: !alreadyLiked,
-        reaction,
-        matched: true,
-        conversationId: createdConversation.id,
-      };
     }
-
-    const [existingConversation] = await tx
-      .select({
-        id: chatConversation.id,
-      })
-      .from(chatConversation)
-      .where(
-        and(
-          eq(chatConversation.profileOneId, pair.profileOneId),
-          eq(chatConversation.profileTwoId, pair.profileTwoId),
-        ),
-      )
-      .limit(1);
 
     return {
+      ok: true as const,
       shouldNotifyMatch: !alreadyLiked,
       reaction,
-      matched: true,
-      conversationId: existingConversation?.id ?? null,
+      matched,
+      conversationId: conversation?.id ?? null,
     };
   });
 
-  if (result.matched && result.conversationId) {
+  if (!result.ok) return result;
+
+  if (result.conversationId) {
     await broadcastConversationUpsert(result.conversationId);
 
-    if (result.shouldNotifyMatch) {
+    if (result.matched && result.shouldNotifyMatch) {
       try {
         await notifyProfileMatchUsers({
           conversationId: result.conversationId,
@@ -852,6 +1354,7 @@ export const setProfileReactionAndSyncConversation = async ({
   }
 
   return {
+    ok: true as const,
     reaction: result.reaction,
     matched: result.matched,
     conversationId: result.conversationId,
@@ -877,8 +1380,6 @@ export const listChatConversations = async ({
       message: "Profile not found",
     };
   }
-
-  await syncConversationsForProfileMatches(profileId);
 
   const pageSize = normalizeLimit(limit, defaultConversationLimit);
   const context = { userId, profileId };
@@ -949,8 +1450,6 @@ export const listChatConversations = async ({
     left join ${chatConversationReadState} read_state
       on read_state.conversation_id = conversation_rows.id
       and read_state.profile_id = ${profileId}
-    left join ${chatMessage} read_message
-      on read_message.id = read_state.last_read_message_id
     left join lateral (
       select
         message.id,
@@ -973,23 +1472,11 @@ export const listChatConversations = async ({
         and unread_message.sender_profile_id is distinct from ${profileId}
         and (
           read_state.conversation_id is null
+          or read_state.last_read_message_id is null
+          or unread_message.created_at > read_state.last_read_message_created_at
           or (
-            read_state.last_read_message_id is not null
-            and read_message.id is not null
-            and (
-              unread_message.created_at > read_message.created_at
-              or (
-                unread_message.created_at = read_message.created_at
-                and unread_message.id > read_message.id
-              )
-            )
-          )
-          or (
-            (
-              read_state.last_read_message_id is null
-              or read_message.id is null
-            )
-            and unread_message.created_at > read_state.last_read_at
+            unread_message.created_at = read_state.last_read_message_created_at
+            and unread_message.id > read_state.last_read_message_id
           )
         )
     ) unread_state on true
@@ -1003,7 +1490,12 @@ export const listChatConversations = async ({
     limit ${pageSize + 1}
   `)) as RawConversationRow[];
 
-  const data = rows.slice(0, pageSize).map(toConversation);
+  const dataRows = rows.slice(0, pageSize);
+  const positions = await loadParticipantReadPositions(
+    db,
+    dataRows.map(({ id }) => id),
+  );
+  const data = dataRows.map((row) => toConversation(row, positions.get(row.id) ?? []));
   const lastReturned = rows[Math.min(rows.length, pageSize) - 1];
   const nextCursor =
     rows.length > pageSize && lastReturned
@@ -1051,6 +1543,30 @@ export const getChatConversation = async ({
   return {
     ok: true,
     data: conversation,
+  };
+};
+
+export const getChatUnreadCount = async ({
+  profileId,
+  userId,
+}: {
+  profileId: string;
+  userId: string;
+}): Promise<ChatServiceResult<{ count: number }>> => {
+  const [profileAccess] = await findActiveProfileMembership(profileId, userId);
+  if (!profileAccess) {
+    return {
+      ok: false,
+      code: "profile_not_found",
+      message: "Profile not found",
+    };
+  }
+
+  return {
+    ok: true,
+    data: {
+      count: await getChatUnreadCountInTransaction(db, profileId),
+    },
   };
 };
 
@@ -1107,8 +1623,17 @@ export const listChatMessages = async ({
     messageIds,
     profileId,
   );
+  const replyTargetStates = await loadReplySummaryStates(db, dataRows);
   const data = dataRows.map((row) =>
-    toMessage(row, reactionCountsByMessageId.get(row.id), viewerReactionsByMessageId.get(row.id)),
+    toMessage(
+      row,
+      reactionCountsByMessageId.get(row.id),
+      viewerReactionsByMessageId.get(row.id),
+      projectReplySummary(
+        row.replySummary,
+        row.replySummary ? replyTargetStates.get(row.replySummary.messageId) : undefined,
+      ),
+    ),
   );
   const lastReturned = rows[Math.min(rows.length, pageSize) - 1];
   const nextCursor =
@@ -1136,24 +1661,52 @@ export const listChatMessages = async ({
 export const markChatConversationRead = async ({
   conversationId,
   messageId,
+  policy,
   profileId,
   userId,
 }: {
   conversationId: string;
   messageId?: string;
+  policy: TransactionalChatPolicy;
   profileId: string;
   userId: string;
 }): Promise<ChatServiceResult<ChatConversation>> => {
-  const access = await getConversationAccess({ conversationId, profileId, userId });
-  if (!access.ok) return access;
-
-  const now = new Date();
   const updateResult = await db.transaction(async (tx) => {
+    const [candidate] = await tx
+      .select(conversationFields)
+      .from(chatConversation)
+      .where(eq(chatConversation.id, conversationId))
+      .limit(1);
+    if (!candidate) {
+      return {
+        ok: false as const,
+        code: "conversation_not_found" as const,
+        message: "Conversation not found",
+      };
+    }
+
+    const { conversation } = await lockProfilePairInTransaction({
+      profileId: candidate.profileOneId,
+      targetProfileId: candidate.profileTwoId,
+      tx,
+    });
+    const [membership] = await findActiveProfileMembershipInTransaction(tx, profileId, userId);
+    if (
+      !conversation ||
+      !membership ||
+      (conversation.profileOneId !== profileId && conversation.profileTwoId !== profileId)
+    ) {
+      return {
+        ok: false as const,
+        code: "conversation_not_found" as const,
+        message: "Conversation not found",
+      };
+    }
+
     const [targetMessage] = messageId
       ? await tx
           .select({
             id: chatMessage.id,
-            createdAt: chatMessage.createdAt,
           })
           .from(chatMessage)
           .where(and(eq(chatMessage.id, messageId), eq(chatMessage.conversationId, conversationId)))
@@ -1161,7 +1714,6 @@ export const markChatConversationRead = async ({
       : await tx
           .select({
             id: chatMessage.id,
-            createdAt: chatMessage.createdAt,
           })
           .from(chatMessage)
           .where(eq(chatMessage.conversationId, conversationId))
@@ -1171,322 +1723,642 @@ export const markChatConversationRead = async ({
     if (messageId && !targetMessage) {
       return {
         ok: false as const,
+        code: "message_not_found" as const,
+        message: "Read target message not found",
       };
     }
 
     if (!targetMessage) {
+      const projection = await loadChatConversationForProfile({
+        conversationId,
+        executor: tx,
+        profileId,
+      });
       return {
         ok: true as const,
+        changed: false,
+        conversation: projection!,
       };
     }
 
-    const [existingState] = await tx
-      .select({
-        lastReadMessageId: chatConversationReadState.lastReadMessageId,
-        lastReadAt: chatConversationReadState.lastReadAt,
-        readMessageCreatedAt: chatMessage.createdAt,
-      })
-      .from(chatConversationReadState)
-      .leftJoin(chatMessage, eq(chatConversationReadState.lastReadMessageId, chatMessage.id))
-      .where(
-        and(
-          eq(chatConversationReadState.conversationId, conversationId),
-          eq(chatConversationReadState.profileId, profileId),
-        ),
-      )
-      .limit(1);
-
-    const targetPosition = {
-      id: targetMessage.id,
-      createdAt: targetMessage.createdAt,
-    };
-    const existingPosition = getExistingReadPosition(existingState);
-
-    if (!existingPosition || compareReadPositions(targetPosition, existingPosition) > 0) {
-      await tx
-        .insert(chatConversationReadState)
-        .values({
+    const unreadBefore = await getChatUnreadCountInTransaction(tx, profileId);
+    const advanced = await advanceReadPositionInTransaction({
+      conversationId,
+      message: targetMessage,
+      profileId,
+      tx,
+    });
+    const unreadAfter = await getChatUnreadCountInTransaction(tx, profileId);
+    const participantProfileIds = [conversation.profileOneId, conversation.profileTwoId].sort();
+    const projections = await Promise.all(
+      participantProfileIds.map(async (participantProfileId) => ({
+        conversation: await loadChatConversationForProfile({
           conversationId,
-          profileId,
-          lastReadMessageId: targetMessage.id,
-          lastReadAt: now,
-        })
-        .onConflictDoUpdate({
-          target: [chatConversationReadState.conversationId, chatConversationReadState.profileId],
-          set: {
-            lastReadMessageId: targetMessage.id,
-            lastReadAt: now,
-            updatedAt: now,
+          executor: tx,
+          profileId: participantProfileId,
+        }),
+        profileId: participantProfileId,
+      })),
+    );
+    const viewerProjection = projections.find(
+      ({ profileId: id }) => id === profileId,
+    )?.conversation;
+    if (!viewerProjection) throw new Error("Conversation read projection could not be loaded");
+
+    if (advanced) {
+      const causalId = createDurableEventCausalId();
+      const events: DurableEventInput[] = [
+        {
+          scope: { kind: "chat-conversation" as const, id: conversationId },
+          eventType: "chat.conversation.read",
+          eventVersion: CHAT_EVENT_VERSION,
+          payload: {
+            conversationId,
+            position: JSON.parse(JSON.stringify(advanced)) as DurableJsonObject,
           },
+          retentionSeconds: policy.eventRetentionSeconds,
+        },
+      ];
+
+      for (const projection of projections) {
+        if (!projection.conversation) continue;
+        events.push({
+          scope: { kind: "chat-profile", id: projection.profileId },
+          eventType: "chat.conversation.upsert",
+          eventVersion: CHAT_EVENT_VERSION,
+          payload: {
+            profileId: projection.profileId,
+            conversation: toDurableConversation(projection.conversation),
+          },
+          retentionSeconds: policy.eventRetentionSeconds,
         });
+        if (projection.profileId === profileId && unreadBefore !== unreadAfter) {
+          events.push({
+            scope: { kind: "chat-profile", id: profileId },
+            eventType: "chat.unread.aggregate",
+            eventVersion: CHAT_EVENT_VERSION,
+            payload: { profileId, count: unreadAfter },
+            retentionSeconds: policy.eventRetentionSeconds,
+          });
+        }
+      }
+
+      await appendDurableEventsInTransaction({
+        causalId,
+        events,
+        tx,
+      });
     }
 
     return {
       ok: true as const,
+      changed: Boolean(advanced),
+      conversation: viewerProjection,
+      position: advanced,
     };
   });
 
   if (!updateResult.ok) {
     return {
       ok: false,
-      code: "message_not_found",
-      message: "Read target message not found",
+      code: updateResult.code,
+      message: updateResult.message,
     };
   }
 
-  const conversation = await loadChatConversationForProfile({ conversationId, profileId });
-  if (!conversation) {
-    return {
-      ok: false,
-      code: "conversation_not_found",
-      message: "Conversation not found",
-    };
+  if (updateResult.changed) {
+    await broadcastConversationUpsert(conversationId);
+    if (updateResult.position) {
+      chatSockets.sendToConversationSubscribers(conversationId, {
+        type: "conversation_read",
+        conversationId,
+        position: updateResult.position,
+      });
+    }
   }
-
-  chatSockets.sendToProfile(profileId, {
-    type: "conversation_upsert",
-    conversation,
-  });
-  chatSockets.sendToConversationSubscribers(conversationId, {
-    type: "conversation_read",
-    conversationId,
-    profileId,
-    readState: conversation.readState as ChatConversationReadState,
-  });
 
   return {
     ok: true,
-    data: conversation,
+    data: updateResult.conversation,
   };
 };
 
 export const sendTextMessage = async ({
-  clientMessageId,
   conversationId,
+  failureInjector,
+  idempotencyKey,
+  policy,
   profileId,
   replyToMessageId,
   text,
   userId,
 }: {
-  clientMessageId?: string;
   conversationId: string;
+  failureInjector?: ChatTransactionFailureInjector;
+  idempotencyKey: string;
+  policy: TransactionalChatPolicy;
   profileId: string;
   replyToMessageId?: string;
   text: string;
   userId: string;
-}): Promise<ChatServiceResult<ChatMessage>> => {
+}): Promise<SendTextMessageResult> => {
+  if (!idempotencyKey) {
+    return {
+      ok: false,
+      code: "idempotency_key_required",
+      message: "Idempotency-Key is required",
+      httpStatus: 400,
+    };
+  }
+  if (!isCanonicalMessageIdempotencyKey(idempotencyKey)) {
+    return {
+      ok: false,
+      code: "invalid_idempotency_key",
+      message: "Idempotency-Key must be a canonical lowercase RFC 4122 UUID",
+      httpStatus: 400,
+    };
+  }
+
   const content = text.trim();
-  if (!content) {
+  if (!content || content.length > 4000) {
     return {
       ok: false,
-      code: "empty_message",
-      message: "Message text cannot be empty",
+      code: "invalid_message",
+      message: "Message text is invalid",
+      httpStatus: 422,
     };
   }
 
-  const access = await getConversationAccess({ conversationId, profileId, userId });
-  if (!access.ok) return access;
+  let committedNotifications: CreatedMessageNotification[] = [];
+  const rejectedOutcome = (
+    code: SendMessageRejectedResult["error"]["code"],
+    message: string,
+    httpStatus: SendMessageRejectedResult["httpStatus"],
+  ): CommandOutcome => ({
+    outcome: "rejected",
+    result: {
+      version: CHAT_MESSAGE_SEND_RESULT_VERSION,
+      status: "rejected",
+      httpStatus,
+      error: { code, message },
+    },
+  });
 
-  const matched = await areProfilesMatched(profileId, access.data.otherProfileId);
-  if (!matched) {
-    return {
-      ok: false,
-      code: "not_matched",
-      message: "Messages can only be sent while profiles are matched",
-    };
-  }
-
-  const row = await db.transaction(async (tx) => {
-    if (replyToMessageId) {
-      const [reply] = await tx
-        .select({
-          id: chatMessage.id,
-        })
-        .from(chatMessage)
-        .where(
-          and(eq(chatMessage.id, replyToMessageId), eq(chatMessage.conversationId, conversationId)),
-        )
+  const commandResult = await runIdempotentCommand({
+    actorUserId: userId,
+    commandName: CHAT_MESSAGE_SEND_COMMAND_NAME,
+    commandVersion: CHAT_MESSAGE_SEND_COMMAND_VERSION,
+    idempotencyKey,
+    normalizedRequest: {
+      conversationId,
+      actorProfileId: profileId,
+      text: content,
+      replyToMessageId: replyToMessageId ?? null,
+    },
+    retentionSeconds: policy.commandRetentionSeconds,
+    afterOutcomePersisted: () => runFailureInjector(failureInjector, "after_idempotency_outcome"),
+    execute: async (tx) => {
+      await runFailureInjector(failureInjector, "after_idempotency_claim");
+      const [candidate] = await tx
+        .select(conversationFields)
+        .from(chatConversation)
+        .where(eq(chatConversation.id, conversationId))
         .limit(1);
+      if (!candidate) {
+        return rejectedOutcome("conversation_not_found", "Conversation not found", 404);
+      }
 
-      if (!reply) return null;
-    }
-
-    const [created] = await tx
-      .insert(chatMessage)
-      .values({
-        conversationId,
-        senderProfileId: profileId,
-        messageType: "text",
-        content,
-        replyToMessageId: replyToMessageId ?? null,
-      })
-      .returning(messageFields);
-
-    await tx
-      .update(chatConversation)
-      .set({
-        lastMessageAt: created.createdAt,
-        updatedAt: new Date(),
-      })
-      .where(eq(chatConversation.id, conversationId));
-
-    const readAt = new Date();
-    await tx
-      .insert(chatConversationReadState)
-      .values({
-        conversationId,
-        profileId,
-        lastReadMessageId: created.id,
-        lastReadAt: readAt,
-      })
-      .onConflictDoUpdate({
-        target: [chatConversationReadState.conversationId, chatConversationReadState.profileId],
-        set: {
-          lastReadMessageId: created.id,
-          lastReadAt: readAt,
-          updatedAt: readAt,
-        },
+      const { conversation } = await lockProfilePairInTransaction({
+        profileId: candidate.profileOneId,
+        targetProfileId: candidate.profileTwoId,
+        tx,
       });
+      await runFailureInjector(failureInjector, "after_common_lock");
+      const [membership] = await findActiveProfileMembershipInTransaction(tx, profileId, userId);
+      if (
+        !conversation ||
+        !membership ||
+        (conversation.profileOneId !== profileId && conversation.profileTwoId !== profileId)
+      ) {
+        return rejectedOutcome("conversation_not_found", "Conversation not found", 404);
+      }
+      await runFailureInjector(failureInjector, "after_authorization");
 
-    return created;
+      const otherProfileId = getOtherProfileId(conversation, profileId);
+      const matched = await areProfilesMatchedInTransaction(tx, profileId, otherProfileId);
+      if (!matched) {
+        return rejectedOutcome(
+          "conversation_not_matched",
+          "Conversation is not currently matched",
+          409,
+        );
+      }
+      await runFailureInjector(failureInjector, "after_match_validation");
+
+      const [replyTarget] = replyToMessageId
+        ? await tx
+            .select({
+              id: chatMessage.id,
+              senderProfileId: chatMessage.senderProfileId,
+              messageType: chatMessage.messageType,
+              content: chatMessage.content,
+            })
+            .from(chatMessage)
+            .where(
+              and(
+                eq(chatMessage.id, replyToMessageId),
+                eq(chatMessage.conversationId, conversationId),
+                isNull(chatMessage.deletedAt),
+              ),
+            )
+            .limit(1)
+        : [];
+      if (replyToMessageId && !replyTarget) {
+        return rejectedOutcome("invalid_reply_target", "Reply target is invalid", 422);
+      }
+      await runFailureInjector(failureInjector, "after_reply_validation");
+
+      const participantProfileIds = [conversation.profileOneId, conversation.profileTwoId].sort();
+      const unreadBefore = new Map<string, number>();
+      for (const participantProfileId of participantProfileIds) {
+        unreadBefore.set(
+          participantProfileId,
+          await getChatUnreadCountInTransaction(tx, participantProfileId),
+        );
+      }
+
+      const replySummary = replyTarget ? createReplySummary(replyTarget) : null;
+      const [created] = await tx
+        .insert(chatMessage)
+        .values({
+          conversationId,
+          senderProfileId: profileId,
+          messageType: "text",
+          content,
+          replyToMessageId: replyToMessageId ?? null,
+          replySummary,
+        })
+        .returning(messageFields);
+      const message = toMessage(created, [], [], replySummary);
+      await runFailureInjector(failureInjector, "after_message_insert");
+
+      const senderPosition = await advanceReadPositionInTransaction({
+        conversationId,
+        message: created,
+        profileId,
+        tx,
+      });
+      if (!senderPosition) throw new Error("Sender read position did not advance to new message");
+      await runFailureInjector(failureInjector, "after_sender_read");
+
+      await tx
+        .update(chatConversation)
+        .set({
+          lastMessageAt: created.createdAt,
+          updatedAt: sql`clock_timestamp()`,
+        })
+        .where(eq(chatConversation.id, conversationId));
+      await runFailureInjector(failureInjector, "after_conversation_projection");
+
+      const notificationState = await createMessageNotificationStateInTransaction({
+        conversationId,
+        message,
+        recipientProfileId: otherProfileId,
+        senderProfileId: profileId,
+        senderUserId: userId,
+        tx,
+      });
+      await runFailureInjector(failureInjector, "after_notification_state");
+      await enqueueMessagePushJobsInTransaction({
+        deliveryIds: notificationState.pushDeliveryIds,
+        policy,
+        tx,
+      });
+      await runFailureInjector(failureInjector, "after_delivery_jobs");
+
+      const unreadAfter = new Map<string, number>();
+      const projections = [];
+      for (const participantProfileId of participantProfileIds) {
+        unreadAfter.set(
+          participantProfileId,
+          await getChatUnreadCountInTransaction(tx, participantProfileId),
+        );
+        const projection = await loadChatConversationForProfile({
+          conversationId,
+          executor: tx,
+          profileId: participantProfileId,
+        });
+        if (!projection) throw new Error("Message conversation projection could not be loaded");
+        projections.push({ conversation: projection, profileId: participantProfileId });
+      }
+
+      const causalId = createDurableEventCausalId();
+      const events: DurableEventInput[] = [
+        {
+          scope: { kind: "chat-conversation" as const, id: conversationId },
+          eventType: "chat.message.created",
+          eventVersion: CHAT_EVENT_VERSION,
+          payload: {
+            conversationId,
+            message: toDurableChatMessage(message),
+          } as DurableJsonObject,
+          retentionSeconds: policy.eventRetentionSeconds,
+        },
+        {
+          scope: { kind: "chat-conversation" as const, id: conversationId },
+          eventType: "chat.conversation.read",
+          eventVersion: CHAT_EVENT_VERSION,
+          payload: {
+            conversationId,
+            position: JSON.parse(JSON.stringify(senderPosition)) as DurableJsonObject,
+          },
+          retentionSeconds: policy.eventRetentionSeconds,
+        },
+      ];
+
+      for (const projection of projections) {
+        events.push({
+          scope: { kind: "chat-profile", id: projection.profileId },
+          eventType: "chat.conversation.upsert",
+          eventVersion: CHAT_EVENT_VERSION,
+          payload: {
+            profileId: projection.profileId,
+            conversation: toDurableConversation(projection.conversation),
+          },
+          retentionSeconds: policy.eventRetentionSeconds,
+        });
+        if (unreadBefore.get(projection.profileId) !== unreadAfter.get(projection.profileId)) {
+          events.push({
+            scope: { kind: "chat-profile", id: projection.profileId },
+            eventType: "chat.unread.aggregate",
+            eventVersion: CHAT_EVENT_VERSION,
+            payload: {
+              profileId: projection.profileId,
+              count: unreadAfter.get(projection.profileId)!,
+            },
+            retentionSeconds: policy.eventRetentionSeconds,
+          });
+        }
+      }
+
+      for (const createdNotification of notificationState.createdNotifications) {
+        events.push({
+          scope: {
+            kind: "notification-user",
+            id: createdNotification.recipientUserId,
+          },
+          eventType: "notification.created",
+          eventVersion: CHAT_EVENT_VERSION,
+          payload: {
+            notification: toDurableNotification(createdNotification.notification),
+            unreadCount: createdNotification.unreadCount,
+          } as DurableJsonObject,
+          retentionSeconds: policy.eventRetentionSeconds,
+        });
+      }
+
+      await appendDurableEventsInTransaction({
+        causalId,
+        events,
+        tx,
+      });
+      await runFailureInjector(failureInjector, "after_durable_events");
+      committedNotifications = notificationState.createdNotifications;
+      await runFailureInjector(failureInjector, "before_idempotency_outcome");
+
+      return {
+        outcome: "succeeded",
+        result: {
+          version: CHAT_MESSAGE_SEND_RESULT_VERSION,
+          status: "succeeded",
+          message: toDurableChatMessage(message),
+        },
+      };
+    },
   });
 
-  if (!row) {
+  if (!commandResult.ok) {
     return {
       ok: false,
-      code: "reply_not_found",
-      message: "Reply target message not found",
+      code: commandResult.error.code,
+      message: commandResult.error.message,
+      httpStatus: 409,
     };
   }
 
-  const message = toMessage(row);
+  if (!("result" in commandResult.outcome)) {
+    throw new Error("Message command outcome must contain an inline result");
+  }
+  const storedResult = commandResult.outcome.result as StoredSendMessageResult;
+  if (storedResult.version !== CHAT_MESSAGE_SEND_RESULT_VERSION) {
+    throw new Error("Stored message command result version is unsupported");
+  }
+  if (storedResult.status === "rejected") {
+    return {
+      ok: false,
+      code: storedResult.error.code,
+      message: storedResult.error.message,
+      httpStatus: storedResult.httpStatus,
+      replayed: commandResult.replayed,
+      terminalCommandResult: true,
+    };
+  }
 
-  chatSockets.sendToConversationSubscribers(conversationId, {
-    type: "message",
-    conversationId,
-    message,
-    clientMessageId,
-  });
-  await broadcastConversationUpsert(conversationId);
-
-  try {
-    await notifyAbsentRecipientUsers({
-      conversation: access.data.conversation,
+  const message = fromDurableChatMessage(storedResult.message);
+  if (!commandResult.replayed) {
+    chatSockets.sendToConversationSubscribers(conversationId, {
+      type: "message",
+      conversationId,
       message,
-      recipientProfileId: access.data.otherProfileId,
-      senderProfileId: profileId,
-      senderUserId: userId,
     });
-  } catch (error) {
-    console.error("Failed to create chat message notifications:", error);
+    try {
+      await broadcastConversationUpsert(conversationId);
+    } catch (error) {
+      console.error("Failed to broadcast committed conversation projection:", error);
+    }
+    for (const createdNotification of committedNotifications) {
+      notificationSockets.sendToUser(createdNotification.recipientUserId, {
+        type: "notification",
+        notification: createdNotification.notification,
+      });
+      notificationSockets.sendToUser(createdNotification.recipientUserId, {
+        type: "unread_count",
+        count: createdNotification.unreadCount,
+      });
+    }
   }
 
   return {
     ok: true,
     data: message,
+    replayed: commandResult.replayed,
   };
 };
 
 export const setMessageReaction = async ({
   conversationId,
   emoji,
+  failureInjector,
   messageId,
+  policy,
   profileId,
   reacted,
   userId,
 }: {
   conversationId: string;
   emoji: string;
+  failureInjector?: ChatTransactionFailureInjector;
   messageId: string;
+  policy: TransactionalChatPolicy;
   profileId: string;
   reacted: boolean;
   userId: string;
 }): Promise<ChatServiceResult<ChatMessage>> => {
   const normalizedEmoji = emoji.trim();
-  if (!normalizedEmoji) {
+  if (!normalizedEmoji || normalizedEmoji.length > 64) {
     return {
       ok: false,
-      code: "empty_message",
-      message: "Reaction cannot be empty",
+      code: "invalid_reaction",
+      message: "Reaction is invalid",
     };
   }
 
-  const access = await getConversationAccess({ conversationId, profileId, userId });
-  if (!access.ok) return access;
+  const mutation = await db.transaction(async (tx) => {
+    const [candidate] = await tx
+      .select(conversationFields)
+      .from(chatConversation)
+      .where(eq(chatConversation.id, conversationId))
+      .limit(1);
+    if (!candidate) {
+      return {
+        ok: false as const,
+        code: "conversation_not_found" as const,
+        message: "Conversation not found",
+      };
+    }
 
-  const matched = await areProfilesMatched(profileId, access.data.otherProfileId);
-  if (!matched) {
-    return {
-      ok: false,
-      code: "not_matched",
-      message: "Message reactions can only be changed while profiles are matched",
-    };
-  }
+    const { conversation } = await lockProfilePairInTransaction({
+      profileId: candidate.profileOneId,
+      targetProfileId: candidate.profileTwoId,
+      tx,
+    });
+    await runFailureInjector(failureInjector, "after_common_lock");
+    const [membership] = await findActiveProfileMembershipInTransaction(tx, profileId, userId);
+    if (
+      !conversation ||
+      !membership ||
+      (conversation.profileOneId !== profileId && conversation.profileTwoId !== profileId)
+    ) {
+      return {
+        ok: false as const,
+        code: "conversation_not_found" as const,
+        message: "Conversation not found",
+      };
+    }
 
-  const [message] = await db
-    .select({
-      id: chatMessage.id,
-    })
-    .from(chatMessage)
-    .where(and(eq(chatMessage.id, messageId), eq(chatMessage.conversationId, conversationId)))
-    .limit(1);
+    const otherProfileId = getOtherProfileId(conversation, profileId);
+    if (!(await areProfilesMatchedInTransaction(tx, profileId, otherProfileId))) {
+      return {
+        ok: false as const,
+        code: "conversation_not_matched" as const,
+        message: "Conversation is not currently matched",
+      };
+    }
 
-  if (!message) {
-    return {
-      ok: false,
-      code: "message_not_found",
-      message: "Message not found",
-    };
-  }
-
-  if (reacted) {
-    await db
-      .insert(chatMessageReaction)
-      .values({
-        messageId,
-        profileId,
-        emoji: normalizedEmoji,
-      })
-      .onConflictDoNothing({
-        target: [
-          chatMessageReaction.messageId,
-          chatMessageReaction.profileId,
-          chatMessageReaction.emoji,
-        ],
-      });
-  } else {
-    await db
-      .delete(chatMessageReaction)
+    const [target] = await tx
+      .select({ id: chatMessage.id })
+      .from(chatMessage)
       .where(
         and(
-          eq(chatMessageReaction.messageId, messageId),
-          eq(chatMessageReaction.profileId, profileId),
-          eq(chatMessageReaction.emoji, normalizedEmoji),
+          eq(chatMessage.id, messageId),
+          eq(chatMessage.conversationId, conversationId),
+          isNull(chatMessage.deletedAt),
         ),
-      );
-  }
+      )
+      .limit(1);
+    if (!target) {
+      return {
+        ok: false as const,
+        code: "message_not_found" as const,
+        message: "Message not found",
+      };
+    }
 
-  const updatedMessage = await getMessageWithReactions(messageId, profileId);
-  if (!updatedMessage) {
+    const changedRows = reacted
+      ? await tx
+          .insert(chatMessageReaction)
+          .values({
+            messageId,
+            profileId,
+            emoji: normalizedEmoji,
+          })
+          .onConflictDoNothing({
+            target: [
+              chatMessageReaction.messageId,
+              chatMessageReaction.profileId,
+              chatMessageReaction.emoji,
+            ],
+          })
+          .returning({ messageId: chatMessageReaction.messageId })
+      : await tx
+          .delete(chatMessageReaction)
+          .where(
+            and(
+              eq(chatMessageReaction.messageId, messageId),
+              eq(chatMessageReaction.profileId, profileId),
+              eq(chatMessageReaction.emoji, normalizedEmoji),
+            ),
+          )
+          .returning({ messageId: chatMessageReaction.messageId });
+    const updatedMessage = await getMessageWithReactions(messageId, profileId, tx);
+    if (!updatedMessage) throw new Error("Reaction message disappeared while locked");
+    const changed = changedRows.length > 0;
+
+    if (changed) {
+      await appendDurableEventsInTransaction({
+        causalId: createDurableEventCausalId(),
+        events: [
+          {
+            scope: { kind: "chat-conversation", id: conversationId },
+            eventType: "chat.reaction.state",
+            eventVersion: CHAT_EVENT_VERSION,
+            payload: {
+              conversationId,
+              messageId,
+              reactionCounts: updatedMessage.reactionCounts,
+              actorProfileId: profileId,
+              emoji: normalizedEmoji,
+              reacted,
+            },
+            retentionSeconds: policy.eventRetentionSeconds,
+          },
+        ],
+        tx,
+      });
+    }
+
     return {
-      ok: false,
-      code: "message_not_found",
-      message: "Message not found",
+      ok: true as const,
+      changed,
+      message: updatedMessage,
     };
-  }
-
-  chatSockets.sendToConversationSubscribers(conversationId, {
-    type: "reaction",
-    conversationId,
-    messageId,
-    reactionCounts: updatedMessage.reactionCounts as ChatMessageReactionCount[],
-    profileId,
-    emoji: normalizedEmoji,
-    reacted,
   });
+
+  if (!mutation.ok) return mutation;
+  if (mutation.changed) {
+    chatSockets.sendToConversationSubscribers(conversationId, {
+      type: "reaction",
+      conversationId,
+      messageId,
+      reactionCounts: mutation.message.reactionCounts as ChatMessageReactionCount[],
+      profileId,
+      emoji: normalizedEmoji,
+      reacted,
+    });
+  }
 
   return {
     ok: true,
-    data: updatedMessage,
+    data: mutation.message,
   };
 };

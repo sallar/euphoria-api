@@ -120,14 +120,14 @@ describe("mobile AsyncAPI contract", () => {
     }
 
     expect(chatClientCommandRegistry).toHaveLength(8);
-    expect(chatServerEventRegistry).toHaveLength(12);
+    expect(chatServerEventRegistry).toHaveLength(13);
     expect(notificationClientCommandRegistry).toHaveLength(3);
     expect(notificationServerEventRegistry).toHaveLength(6);
   });
 
   test("creates one message with a valid example for every variant", () => {
     const allVariants = registryContracts.flatMap(({ registry }) => [...registry]);
-    expect(Object.keys(asyncApiDocument.components.messages)).toHaveLength(29);
+    expect(Object.keys(asyncApiDocument.components.messages)).toHaveLength(30);
 
     for (const variant of allVariants) {
       const message = asyncApiDocument.components.messages[variant.name];
@@ -220,7 +220,7 @@ describe("mobile AsyncAPI contract", () => {
       .map(([name]) => name);
     expect(correlatedMessages).toEqual([
       "ChatSendMessageCommand",
-      "ChatMessageEvent",
+      "ChatSendMessageResultEvent",
       "ChatErrorEvent",
     ]);
 
@@ -248,7 +248,7 @@ describe("mobile AsyncAPI contract", () => {
     expect(asyncApiDocument["x-compatibility"].breakingChanges.length).toBeGreaterThan(0);
   });
 
-  test("requires protocolVersion 1 on both connected events", () => {
+  test("requires protocolVersion 2 on both connected events", () => {
     for (const schemaName of ["ChatConnectedEvent", "NotificationConnectedEvent"]) {
       const schema = asyncApiDocument.components.schemas[schemaName];
       expect(schema.required).toContain("protocolVersion");
@@ -257,6 +257,29 @@ describe("mobile AsyncAPI contract", () => {
         type: "number",
       });
     }
+  });
+
+  test("keeps message idempotency and correlation on the protocol 2 command origin", () => {
+    const command = asyncApiDocument.components.schemas.ChatSendMessageCommand;
+    expect(command.required).toContain("idempotencyKey");
+    expect(command.required).not.toContain("clientMessageId");
+    expect(command.properties.type.const).toBe("send_message");
+
+    const result = asyncApiDocument.components.schemas.ChatSendMessageResultEvent;
+    expect(result.required).toEqual([
+      "type",
+      "command",
+      "commandVersion",
+      "idempotencyKey",
+      "replayed",
+      "result",
+    ]);
+    expect(result.properties.command.const).toBe("chat.message.send");
+    expect(result.properties.commandVersion.const).toBe(1);
+
+    const canonicalMessage = asyncApiDocument.components.schemas.ChatMessageEvent;
+    expect(canonicalMessage.properties.clientMessageId).toBeUndefined();
+    expect(canonicalMessage.properties.idempotencyKey).toBeUndefined();
   });
 
   test("rejects invalid runtime discriminators and malformed command payloads", () => {

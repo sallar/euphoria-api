@@ -29,7 +29,7 @@ export function createMobileAsyncApiDocument(app: AnyElysia): AsyncApiObject {
       title: "Euphoria Mobile Realtime API",
       version: REALTIME_CONTRACT_VERSION,
       description:
-        "Canonical backend-owned WebSocket contract for the Euphoria mobile client. The backend receives commands and sends events. Frames are UTF-8 JSON text frames. Realtime delivery is transient; clients must reconcile against the REST API after every reconnect.",
+        "Canonical backend-owned WebSocket contract for the Euphoria mobile client. Protocol 2 requires persisted idempotency for message send and separates origin-only command results from canonical peer events. Frames are UTF-8 JSON text frames. Live socket delivery remains transient until F6 replay ships.",
     },
     defaultContentType: "application/json",
     servers: {
@@ -83,7 +83,7 @@ export function createMobileAsyncApiDocument(app: AnyElysia): AsyncApiObject {
         action: "receive",
         title: "Receive chat commands",
         description:
-          "The backend receives chat commands from the mobile client. clientMessageId is correlation-only, is not persisted, provides no idempotency guarantee, and must not be blindly replayed after reconnect.",
+          "The backend receives chat commands from the mobile client. send_message requires a persisted UUID idempotencyKey; clientMessageId remains optional origin-only correlation.",
         channel: { $ref: "#/channels/chat" },
         messages: channelOperationMessageReferences("chat", chatClientCommandRegistry),
         security: [{ $ref: "#/components/securitySchemes/bearerAuth" }],
@@ -92,7 +92,7 @@ export function createMobileAsyncApiDocument(app: AnyElysia): AsyncApiObject {
         action: "send",
         title: "Send chat events",
         description:
-          "The backend sends transient chat events to the mobile client. Events have no replay cursor or durable event identifier.",
+          "The backend sends process-local live hints plus origin-only command results. Canonical chat mutations also have PostgreSQL durable events, but F6 replay and socket resume are not implemented yet.",
         channel: { $ref: "#/channels/chat" },
         messages: channelOperationMessageReferences("chat", chatServerEventRegistry),
         security: [{ $ref: "#/components/securitySchemes/bearerAuth" }],
@@ -136,7 +136,7 @@ export function createMobileAsyncApiDocument(app: AnyElysia): AsyncApiObject {
       correlationIds: {
         clientMessageId: {
           description:
-            "Ephemeral chat command correlation value. This is not a durable message ID or idempotency key.",
+            "Optional origin-only chat command correlation value. It is separate from the required persisted idempotencyKey.",
           location: "$message.payload#/clientMessageId",
         },
       },
@@ -167,8 +167,9 @@ export function createMobileAsyncApiDocument(app: AnyElysia): AsyncApiObject {
       durableSocketEventId: false,
       restReconciliationRequiredAfterReconnect: true,
       clientMessageIdReplaySafe: false,
+      messageIdempotencyReplaySafe: true,
       description:
-        "Socket delivery is best-effort and in-memory. After every reconnect, clients must refresh canonical state through REST. clientMessageId correlates a live send_message result only and must not be blindly replayed.",
+        "Socket delivery is still best-effort and in-memory until F6. A send_message may be safely retried across REST, WebSocket, and reconnects only with the same idempotencyKey and normalized command; clientMessageId is correlation-only.",
     },
     "x-compatibility": {
       additiveChanges: [

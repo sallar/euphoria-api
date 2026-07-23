@@ -36,7 +36,7 @@ export type DurableCheckpointError = {
   highWater: bigint;
 };
 
-type DurableEventInput = {
+export type DurableEventInput = {
   scope: DurableEventScope;
   eventType: string;
   eventVersion: number;

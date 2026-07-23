@@ -2,8 +2,8 @@ import type { TUnsafe } from "@sinclair/typebox";
 
 import { t, type TSchema } from "elysia";
 
-export const REALTIME_PROTOCOL_VERSION = 1 as const;
-export const REALTIME_CONTRACT_VERSION = "1.0.0" as const;
+export const REALTIME_PROTOCOL_VERSION = 2 as const;
+export const REALTIME_CONTRACT_VERSION = "2.0.0" as const;
 export const REALTIME_HEARTBEAT_INTERVAL_SECONDS = 30 as const;
 
 export type RealtimeSchemaVariant<Schema extends TSchema = TSchema> = {

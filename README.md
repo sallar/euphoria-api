@@ -25,8 +25,10 @@ ownership, notification/push semantics, and cursor policy.
 PostgreSQL is canonical for domain state and now contains the dormant F3 substrate for durable
 events, per-scope sequences, command idempotency, and leased delivery jobs. The
 [`F3 rollout runbook`](docs/backend-v2/F3-DURABLE-SUBSTRATE-ROLLOUT.md) defines its transaction,
-retention, lease, cleanup, and production-policy preconditions. No existing chat/notification path
-or production worker uses it until F4/F5 supplies reviewed policy.
+retention, lease, cleanup, and production-policy preconditions. The
+[`F4 rollout runbook`](docs/backend-v2/F4-TRANSACTIONAL-CHAT-ROLLOUT.md) defines the implemented
+atomic chat producer, protocol 2 cutover, retention, event, notification/job, cleanup, and rollback
+policy. Production activation remains blocked until the updated client and F5 worker are ready.
 
 Redis is reserved for shared ephemeral coordination: cross-node fan-out,
 connection/subscription routing, expiring presence/typing leases, and session-revocation signals.

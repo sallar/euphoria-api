@@ -171,6 +171,7 @@ export const runIdempotentCommand = async ({
   normalizedRequest,
   retentionSeconds,
   execute,
+  afterOutcomePersisted,
 }: {
   actorUserId: string;
   commandName: string;
@@ -179,6 +180,7 @@ export const runIdempotentCommand = async ({
   normalizedRequest: DurableJsonValue;
   retentionSeconds: number;
   execute: (tx: DatabaseTransaction) => Promise<CommandOutcome>;
+  afterOutcomePersisted?: (tx: DatabaseTransaction) => Promise<void> | void;
 }): Promise<IdempotentCommandResult> => {
   assertBoundedNonblankString(actorUserId, "actorUserId", 1024);
   assertBoundedNonblankString(commandName, "commandName", 120);
@@ -278,6 +280,7 @@ export const runIdempotentCommand = async ({
       .returning({ id: commandIdempotency.id });
 
     if (!completed) throw new Error("Idempotency claim could not be completed");
+    await afterOutcomePersisted?.(tx);
 
     return {
       ok: true,

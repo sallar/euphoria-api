@@ -4,7 +4,6 @@ import {
   check,
   index,
   integer,
-  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -15,6 +14,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { user } from "./auth-schema";
+import { bunJsonb } from "./custom-types";
 import { profile } from "./profile-schema";
 
 export const notificationTypeValues = [
@@ -60,7 +60,7 @@ export const notification = pgTable(
     type: notificationTypeEnum("type").notNull(),
     title: varchar("title", { length: 140 }).notNull(),
     body: text("body").notNull(),
-    data: jsonb("data")
+    data: bunJsonb("data")
       .$type<Record<string, unknown>>()
       .default(sql`'{}'::jsonb`)
       .notNull(),
@@ -149,7 +149,7 @@ export const notificationDelivery = pgTable(
     deliveredAt: timestamp("delivered_at", { withTimezone: true }),
     failedAt: timestamp("failed_at", { withTimezone: true }),
     error: text("error"),
-    providerMetadata: jsonb("provider_metadata").$type<Record<string, string | number | null>>(),
+    providerMetadata: bunJsonb("provider_metadata").$type<Record<string, string | number | null>>(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
