@@ -8,6 +8,7 @@ This is the canonical implementation plan for Backend v2. Later milestones shoul
 file when a decision, dependency, rollout gate, or current-code fact changes. Focused decisions are
 recorded in:
 
+- [F2 profile ownership audit and rollout](F2-PROFILE-OWNERSHIP-ROLLOUT.md)
 - [ADR 0001: PostgreSQL and Redis state ownership](../adr/0001-postgres-redis-state-ownership.md)
 - [ADR 0002: Durable realtime delivery and recovery](../adr/0002-durable-realtime-delivery.md)
 - [ADR 0003: Profile ownership invariant](../adr/0003-profile-ownership-invariant.md)
@@ -33,28 +34,28 @@ The sibling iOS architecture and handoff remain useful client context but includ
 claims: Backend main already implements APNs, and the test-notification route already requires
 bearer authentication and restricts the target to the authenticated user.
 
-| Current evidence                                                                                                                                                                     | Consequence                                                                                                                                         |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/lib/db.ts` uses PostgreSQL through Drizzle/Bun SQL.                                                                                                                             | PostgreSQL remains the canonical domain store.                                                                                                      |
-| `src/services/chat-sockets.ts` and `notification-sockets.ts` keep sockets, subscriptions, and presence in process-local maps keyed by socket/profile/user, not session ID.           | Current realtime cannot provide cross-node fan-out, session-wide revocation, leases, or replay.                                                     |
-| Socket code has no subscription bound, command rate limit, output queue/backpressure policy, node heartbeat, or stale-node cleanup.                                                  | Distributed realtime needs an explicit safety and lifecycle milestone, not only Redis pub/sub.                                                      |
-| `src/lib/asyncapi-document.ts` explicitly advertises no durable ID, cursor, or replay.                                                                                               | Protocol v2 must be additive and versioned; current clients still require REST reconciliation.                                                      |
-| Feed, conversation, message, and notification pagination now uses one versioned HMAC-protected cursor codec with full normalized sort tuples and keyed scope/filter fingerprints.    | F1 cursor integrity is implemented; clients treat every cursor as an opaque string and restart lists that retained a legacy numeric/date cursor.    |
-| Every paginated query uses a strict full-tuple predicate, fetches `limit + 1`, and derives a next cursor from the returned boundary row only when lookahead proves another page.     | Tie-heavy migrated-PostgreSQL traversal tests cover page-size-one boundaries, final/empty pages, and exactly-once traversal.                        |
-| `profileRoutes` serializes creation and returns `409` if the user already has a profile, while `profile_user` is many-to-many and list bootstrap returns an array.                   | The current product is zero/one profile per user but the database does not fully enforce that invariant.                                            |
-| `clientMessageId` is optional WebSocket correlation, is absent from the message table and REST insert, and is included in a message event broadcast to every subscriber.             | Persisted idempotency must cover REST and WebSocket, while correlation/acknowledgement stays origin-only.                                           |
-| Message access/match checks happen before the message transaction; notification creation and socket broadcasts happen after it.                                                      | Message, read/conversation mutation, canonical notification state, events, jobs, and idempotency are not atomic today.                              |
-| Like/unlike takes a profile-pair advisory lock, but send/reaction does not; unlike returns before broadcasting an upsert.                                                            | Match state can race with chat mutations, and peers may retain stale matched state after unlike.                                                    |
-| Read advancement reads then writes in application logic, REST returns only the viewer's read state, and there is no total chat-unread endpoint.                                      | Monotonic reads need a database predicate, peer reads need authorized recovery, and unread needs an authoritative aggregate/event.                  |
-| `ChatMessage` exposes only `replyToMessageId`; no bounded reply summary is projected.                                                                                                | The client must currently load the target or show a fallback.                                                                                       |
-| `createNotification` transactionally creates notification/delivery rows but performs socket/provider I/O directly after commit; read/archive broadcasts are process-local.           | Preserve transactional rows, add durable cross-device events, and move delivery to leased workers.                                                  |
-| Chat message notifications use `channels: ["push"]`, and active conversation viewers are skipped before notification creation.                                                       | Current behavior can omit canonical notification state; v2 must suppress only external push.                                                        |
-| Provider outcome `accepted` is currently recorded as delivery status `delivered`; Expo receipts are not polled.                                                                      | Provider acceptance is not device receipt and needs a compatibility-safe semantic and worker migration.                                             |
-| `src/services/push/apns-provider.ts`, the APNs schema migration, and push tests are present.                                                                                         | APNs is implemented; remaining work is operational durability, invalid-token/retry handling, and physical-device verification in both environments. |
-| `/api/notifications/test/{userId}` has `auth: true` and rejects another user with `403`.                                                                                             | The older iOS warning about an unauthenticated route is obsolete; protection remains a regression gate.                                             |
-| `profile_photo` and image-shaped chat fields exist, but there is no upload-session/processing lifecycle, gallery CRUD, or image-message creation endpoint; attachments contain URLs. | Media requires a server-owned asset lifecycle before gallery and image-message capabilities.                                                        |
-| Conversation peer summaries have no photo, and there is no safe profile-by-ID or deletion lifecycle.                                                                                 | These are product-enabling backend milestones, distinct from core correctness.                                                                      |
-| Docker originally supplied only the API and PostGIS/PostgreSQL.                                                                                                                      | Foundation added isolated Postgres and Redis test services without changing production runtime behavior.                                            |
+| Current evidence                                                                                                                                                                                    | Consequence                                                                                                                                         |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/lib/db.ts` uses PostgreSQL through Drizzle/Bun SQL.                                                                                                                                            | PostgreSQL remains the canonical domain store.                                                                                                      |
+| `src/services/chat-sockets.ts` and `notification-sockets.ts` keep sockets, subscriptions, and presence in process-local maps keyed by socket/profile/user, not session ID.                          | Current realtime cannot provide cross-node fan-out, session-wide revocation, leases, or replay.                                                     |
+| Socket code has no subscription bound, command rate limit, output queue/backpressure policy, node heartbeat, or stale-node cleanup.                                                                 | Distributed realtime needs an explicit safety and lifecycle milestone, not only Redis pub/sub.                                                      |
+| `src/lib/asyncapi-document.ts` explicitly advertises no durable ID, cursor, or replay.                                                                                                              | Protocol v2 must be additive and versioned; current clients still require REST reconciliation.                                                      |
+| Feed, conversation, message, and notification pagination now uses one versioned HMAC-protected cursor codec with full normalized sort tuples and keyed scope/filter fingerprints.                   | F1 cursor integrity is implemented; clients treat every cursor as an opaque string and restart lists that retained a legacy numeric/date cursor.    |
+| Every paginated query uses a strict full-tuple predicate, fetches `limit + 1`, and derives a next cursor from the returned boundary row only when lookahead proves another page.                    | Tie-heavy migrated-PostgreSQL traversal tests cover page-size-one boundaries, final/empty pages, and exactly-once traversal.                        |
+| F2 defines active as `profile.deleted_at IS NULL`; database triggers and services enforce zero/one active membership while preserving explicit owner/member roles for shared couple/group profiles. | Bootstrap remains collection-shaped but returns zero/one active profile; every authorization scope names and verifies the active member profile.    |
+| `clientMessageId` is optional WebSocket correlation, is absent from the message table and REST insert, and is included in a message event broadcast to every subscriber.                            | Persisted idempotency must cover REST and WebSocket, while correlation/acknowledgement stays origin-only.                                           |
+| Message access/match checks happen before the message transaction; notification creation and socket broadcasts happen after it.                                                                     | Message, read/conversation mutation, canonical notification state, events, jobs, and idempotency are not atomic today.                              |
+| Like/unlike takes a profile-pair advisory lock, but send/reaction does not; unlike returns before broadcasting an upsert.                                                                           | Match state can race with chat mutations, and peers may retain stale matched state after unlike.                                                    |
+| Read advancement reads then writes in application logic, REST returns only the viewer's read state, and there is no total chat-unread endpoint.                                                     | Monotonic reads need a database predicate, peer reads need authorized recovery, and unread needs an authoritative aggregate/event.                  |
+| `ChatMessage` exposes only `replyToMessageId`; no bounded reply summary is projected.                                                                                                               | The client must currently load the target or show a fallback.                                                                                       |
+| `createNotification` transactionally creates notification/delivery rows but performs socket/provider I/O directly after commit; read/archive broadcasts are process-local.                          | Preserve transactional rows, add durable cross-device events, and move delivery to leased workers.                                                  |
+| Chat message notifications use `channels: ["push"]`, and active conversation viewers are skipped before notification creation.                                                                      | Current behavior can omit canonical notification state; v2 must suppress only external push.                                                        |
+| Provider outcome `accepted` is currently recorded as delivery status `delivered`; Expo receipts are not polled.                                                                                     | Provider acceptance is not device receipt and needs a compatibility-safe semantic and worker migration.                                             |
+| `src/services/push/apns-provider.ts`, the APNs schema migration, and push tests are present.                                                                                                        | APNs is implemented; remaining work is operational durability, invalid-token/retry handling, and physical-device verification in both environments. |
+| `/api/notifications/test/{userId}` has `auth: true` and rejects another user with `403`.                                                                                                            | The older iOS warning about an unauthenticated route is obsolete; protection remains a regression gate.                                             |
+| `profile_photo` and image-shaped chat fields exist, but there is no upload-session/processing lifecycle, gallery CRUD, or image-message creation endpoint; attachments contain URLs.                | Media requires a server-owned asset lifecycle before gallery and image-message capabilities.                                                        |
+| Conversation peer summaries have no photo, and there is no safe profile-by-ID or deletion lifecycle.                                                                                                | These are product-enabling backend milestones, distinct from core correctness.                                                                      |
+| Docker originally supplied only the API and PostGIS/PostgreSQL.                                                                                                                                     | Foundation added isolated Postgres and Redis test services without changing production runtime behavior.                                            |
 
 ## State ownership and contract boundary
 
@@ -196,6 +197,8 @@ Implementation record:
 
 Dependencies: F0; may proceed independently of F1.
 
+Status: completed 2026-07-23.
+
 - Audit production membership cardinality and choose a remediation for any user attached to more
   than one active profile.
 - Enforce zero or one active profile per user at the service and database boundaries.
@@ -208,6 +211,29 @@ Acceptance gates:
 - Concurrent create and membership changes cannot give a user two active profiles.
 - Couple/group membership has explicit roles and tests, or unused membership is removed.
 - List/bootstrap and contract behavior match the chosen invariant.
+
+Implementation record:
+
+- An active profile has `deleted_at IS NULL`; `hidden` profiles remain active, while membership
+  rows retained for deleted profiles are inactive and do not block replacement onboarding.
+- Bootstrap retains its array envelope but explicitly filters deleted profiles and defensively
+  rejects impossible multi-active state instead of selecting by row order.
+- Transaction-scoped advisory locks and deferred database triggers enforce one active profile per
+  user for direct, concurrent, service, and profile-reactivation writes. The migration aborts
+  before installing enforcement when production cardinality, solo-membership, or owner-role
+  preconditions are not satisfied; it never deletes, merges, or chooses conflicting rows.
+- Solo profiles reject additional users. Couple/group profiles retain multiple active members and
+  explicit `owner`/`member` roles. Existing acting-as-profile operations allow either active role;
+  only owners may call the internal membership mutation service, and an active profile with
+  memberships must retain at least one owner.
+- No public membership, invitation, ownership-transfer, profile-switching, or additional-profile
+  API was added. Those product flows remain the separate P0 milestone below.
+- Stable conflicts use `active_profile_conflict`, `solo_profile_membership_forbidden`, and
+  `final_owner_required`; inaccessible profile behavior remains the established concealed `404`.
+- Migrated-PostgreSQL tests cover concurrent create, concurrent service and direct membership
+  writes, zero/one bootstrap, deleted membership replacement/reactivation, solo restrictions,
+  owner/member authorization, member removal, final-owner races, and authorized feed/chat/user
+  notification/F1 cursor scopes. OpenAPI and AsyncAPI validation remain required gates.
 
 ### F3. Durable command, event, and job substrate
 
@@ -403,6 +429,34 @@ Acceptance gates:
 These milestones are deliberately separate from core correctness. They are dependency-ordered and
 must receive their own implementation tasks and contract rollout.
 
+### P0. Shared-profile invitations and multi-profile switching
+
+Dependencies: F2 and an explicit product/identity design.
+
+- Add consent-based invitations and acceptance for existing users without exposing unrestricted
+  user discovery.
+- Add public owner-authorized membership and role management, ownership transfer, member leave and
+  removal, and final-owner resolution using the F2 internal service semantics.
+- Permit a user to belong to multiple profiles only together with an explicit persisted active
+  profile selection and authenticated create/list/switch operations.
+- Update every REST, WebSocket, notification, cursor, cache, and later durable-event scope to use
+  the selected profile explicitly. Never restore first-row selection.
+- Define client-visible switching, invitation expiry/revocation, deleted-profile handling, and
+  migration/rollback behavior before relaxing F2's database cardinality trigger.
+
+Acceptance gates:
+
+- Invitation acceptance is authenticated, consent-based, expiring/revocable, and race-safe.
+- Concurrent create/accept/switch/leave/remove/role mutations produce one valid membership and
+  active-selection state with no orphaned shared profile.
+- Every profile-scoped authorization and cursor/event fingerprint uses the explicitly selected
+  profile, and another membership cannot leak state across scopes.
+- Existing clients remain on the zero/one behavior until the explicit backend/client contract
+  rollout is complete.
+
+P0 is not part of F2 or F3. Until it is implemented, an authenticated user has zero or one active
+profile even though couple/group profiles may contain multiple users.
+
 ### P1. Media asset and upload-session lifecycle
 
 Dependencies: F3 durable jobs.
@@ -531,7 +585,7 @@ smuggled into F1 or the core Backend v2 rollout.
 | Direct push calls, no worker/receipt loop, misleading `delivered`          | F5 lease/retry/dead-letter/crash, Expo receipt, and provider-acceptance gates.                                                                                                     |
 | Sign-out cannot close one session's sockets across nodes                   | F6 session-ID registry/revocation-latency gate.                                                                                                                                    |
 | Unbounded socket subscriptions/commands/output and unclear close handling  | F6 bounds, backpressure, slow-consumer, rate/payload, close-class, and sanitized-observability gates.                                                                              |
-| Zero/one product behavior over permissive membership                       | F2 concurrency/cardinality and explicit couple/group membership gates.                                                                                                             |
+| Zero/one product behavior over permissive membership                       | Closed by F2 database/service concurrency, active/deleted semantics, and explicit shared-profile role/final-owner gates; P0 is required before multi-profile switching.            |
 | Profile photos seeded/read-only; no upload/gallery/image-message lifecycle | P1 asset lifecycle, P2 gallery/access, and P3 ready-asset image-message gates.                                                                                                     |
 | Conversation peer has no primary photo                                     | P2 projection/update parity gate.                                                                                                                                                  |
 | No safe profile-by-ID or deletion                                          | P4 privacy and idempotent deletion-lifecycle gates.                                                                                                                                |
@@ -608,9 +662,9 @@ should use per-suite schemas or explicit fixtures for mutable test state. Tests 
 
 ## Next task handoff
 
-The next orchestrated milestone should implement F2 only. Start with an audit of production
-profile-membership cardinality and an explicit remediation decision before enforcing zero/one
-active profile ownership at service and database boundaries. Preserve the completed F1 cursor
-policy and its regression fixtures. Do not mix F3 substrate, F4 chat correctness, F5
-notifications/APNs operations, F6 realtime/Redis, P1-P5 product work, or iOS changes into that
-task.
+The next orchestrated milestone should implement F3 only: reusable PostgreSQL command idempotency,
+durable scoped event/outbox, sequence/retention, and leased job substrate. Preserve the completed
+F1 cursor policy and regression fixtures plus F2 active-profile, shared-role, concurrency,
+remediation-precondition, and authorization gates. Do not add P0 profile invitations/switching,
+implement F4 chat correctness, change F5 notification/APNs delivery, add F6 realtime/Redis runtime
+behavior, begin P1-P5 product work, or update iOS contracts in that task.

@@ -14,9 +14,20 @@ import { createPresignedDownloadUrl } from "./s3";
 
 export type ProfileReaction = (typeof profileReactionValues)[number];
 
-export const findOwnedProfile = (profileId: string, userId: string) =>
+export class ActiveProfileCardinalityError extends Error {
+  constructor(readonly userId: string) {
+    super("User belongs to more than one active profile");
+    this.name = "ActiveProfileCardinalityError";
+  }
+}
+
+export const findActiveProfileMembership = (profileId: string, userId: string) =>
   db
-    .select({ profileId: profileUser.profileId })
+    .select({
+      profileId: profileUser.profileId,
+      profileType: profile.profileType,
+      role: profileUser.role,
+    })
     .from(profileUser)
     .innerJoin(profile, eq(profileUser.profileId, profile.id))
     .where(
@@ -27,6 +38,24 @@ export const findOwnedProfile = (profileId: string, userId: string) =>
       ),
     )
     .limit(1);
+
+export const findActiveProfileForUser = async (userId: string) => {
+  const memberships = await db
+    .select({
+      id: profile.id,
+      name: profile.name,
+      profileType: profile.profileType,
+      role: profileUser.role,
+    })
+    .from(profileUser)
+    .innerJoin(profile, eq(profileUser.profileId, profile.id))
+    .where(and(eq(profileUser.userId, userId), isNull(profile.deletedAt)))
+    .orderBy(profile.id)
+    .limit(2);
+
+  if (memberships.length > 1) throw new ActiveProfileCardinalityError(userId);
+  return memberships[0];
+};
 
 export const findActiveProfile = (profileId: string) =>
   db
